@@ -70,7 +70,7 @@ public class TupleDesc implements Serializable {
         int len = typeAr.length;
         ArrayList<TDItem> items = new ArrayList<>(len);
         for(int i = 0; i < len; i++){
-            items.set(i, new TDItem(typeAr[i], fieldAr[i]));
+            items.add(new TDItem(typeAr[i], fieldAr[i]));
         }
         typeArray = typeAr;
         fieldArray = fieldAr;
@@ -103,10 +103,11 @@ public class TupleDesc implements Serializable {
         if(typeAr == null || typeAr.length == 0){
             throw new IllegalArgumentException();
         }
-        int len = typeAr.length;
+        final int len = typeAr.length;
+
         ArrayList<TDItem> items = new ArrayList<>(len);
         for(int i = 0; i < len; i++){
-            items.set(i, new TDItem(typeAr[i], null));
+            items.add(new TDItem(typeAr[i], null));
         }
         listTDItem = items;
         typeArray = typeAr;
