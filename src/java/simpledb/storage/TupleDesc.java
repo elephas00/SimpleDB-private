@@ -63,6 +63,10 @@ public class TupleDesc implements Serializable {
      *                be null.
      */
     public TupleDesc(Type[] typeAr, String[] fieldAr) {
+        // a valid tuple description must have at least one filed.
+        if(typeAr == null || typeAr.length == 0){
+            throw new IllegalArgumentException();
+        }
         int len = typeAr.length;
         ArrayList<TDItem> items = new ArrayList<>(len);
         for(int i = 0; i < len; i++){
@@ -95,6 +99,10 @@ public class TupleDesc implements Serializable {
      *               TupleDesc. It must contain at least one entry.
      */
     public TupleDesc(Type[] typeAr) {
+        // a valid tuple description must have at least one filed.
+        if(typeAr == null || typeAr.length == 0){
+            throw new IllegalArgumentException();
+        }
         int len = typeAr.length;
         ArrayList<TDItem> items = new ArrayList<>(len);
         for(int i = 0; i < len; i++){
@@ -222,9 +230,6 @@ public class TupleDesc implements Serializable {
      * @return String describing this descriptor.
      */
     public String toString() {
-        if(numFields() == 0){
-            return "";
-        }
         StringBuilder builder = new StringBuilder();
         builder.append(listTDItem.get(0).toString());
         for(int i = 1; i < numFields(); i++){
