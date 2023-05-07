@@ -31,6 +31,11 @@ public class BufferPool {
 
     private static int pageSize = DEFAULT_PAGE_SIZE;
 
+    private List<Page> pageList;
+
+    private int pageNum;
+
+    private DbFile dbFile;
     /**
      * Default number of pages passed to the constructor. This is used by
      * other classes. BufferPool should use the numPages argument to the
@@ -44,7 +49,8 @@ public class BufferPool {
      * @param numPages maximum number of pages in this buffer pool.
      */
     public BufferPool(int numPages) {
-        // TODO: some code goes here
+        pageNum = numPages;
+        pageList = new ArrayList<>(numPages);
     }
 
     public static int getPageSize() {
@@ -66,9 +72,9 @@ public class BufferPool {
      * Will acquire a lock and may block if that lock is held by another
      * transaction.
      * <p>
-     * The retrieved page should be looked up in the buffer pool.  If it
+     * The retrieved page should be loked up in the buffer pool.  If it
      * is present, it should be returned.  If it is not present, it should
-     * be added to the buffer pool and returned.  If there is insufficient
+     *e added to the buffer pool and returned.  If there is insufficient
      * space in the buffer pool, a page should be evicted and the new page
      * should be added in its place.
      *
@@ -78,7 +84,20 @@ public class BufferPool {
      */
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
             throws TransactionAbortedException, DbException {
-        // TODO: some code goes here
+        // traversal the page list to find page.
+        for(Page page : pageList){
+            if(page != null && pid.equals(page.getId())){
+                return page;
+            }
+        }
+
+        if(pageList.size() >= pageNum){
+            // TODO finish replace strategy
+            throw new DbException("buffer poll is full, lab1 do not evict page.");
+        }
+//        Page loadPage = dbFile.readPage(pid);
+//        pageList.add(loadPage);
+//        return loadPage;
         return null;
     }
 
