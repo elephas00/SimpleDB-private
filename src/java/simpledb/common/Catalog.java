@@ -111,10 +111,8 @@ public class Catalog {
      * @throws NoSuchElementException if the table doesn't exist
      */
     public int getTableId(String name) throws NoSuchElementException {
-        if(!isExistTableName(name)){
-            throw new NoSuchElementException();
-        }
-        return tableName2TableItem.get(name).dbFile.getId();
+        TableItem item = getTableByName(name);
+        return item.dbFile.getId();
     }
 
     /**
@@ -143,10 +141,8 @@ public class Catalog {
      * @throws NoSuchElementException if the table doesn't exist
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
-        if(!isExistTableId(tableid)){
-            throw new NoSuchElementException();
-        }
-        return tableId2TableItem.get(tableid).dbFile.getTupleDesc();
+        TableItem item = getByTableId(tableid);
+        return item.dbFile.getTupleDesc();
     }
 
     /**
@@ -157,28 +153,46 @@ public class Catalog {
      *                function passed to addTable
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
-        if(!isExistTableId(tableid)){
-            throw new NoSuchElementException();
-        }
-        return tableId2TableItem.get(tableid).dbFile;
+        TableItem item = getByTableId(tableid);
+        return item.dbFile;
     }
 
     public String getPrimaryKey(int tableid) {
-        if(!isExistTableId(tableid)){
-            throw new NoSuchElementException();
-        }
-        return tableId2TableItem.get(tableid).primaryKey;
+        TableItem item = getByTableId(tableid);
+        return item.primaryKey;
     }
 
     public Iterator<Integer> tableIdIterator() {
         return tableId2TableItem.keySet().iterator();
     }
 
-    public String getTableName(int id) {
-        if(!isExistTableId(id)){
+    /**
+     * Help function to get a table item by table id.
+     * @param tableId       tableId of given table to search.
+     * @return              TableItem object with given table id.
+     * @throws NoSuchElementException   table not found with given table id.
+     */
+    private TableItem getByTableId(int tableId) throws NoSuchElementException{
+        if(!isExistTableId(tableId)){
             throw new NoSuchElementException();
         }
-        return tableId2TableItem.get(id).name;
+        return tableId2TableItem.get(tableId);
+    }
+    /**
+     * Help function to get a table item by name.
+     * @param name          name of given table to search.
+     * @return              TableItem object with given name.
+     * @throws NoSuchElementException   table not found with given name.
+     */
+    private TableItem getTableByName(String name) throws NoSuchElementException{
+        if(!isExistTableName(name)){
+            throw new NoSuchElementException();
+        }
+        return tableName2TableItem.get(name);
+    }
+    public String getTableName(int id) {
+        TableItem item = getByTableId(id);
+        return item.name;
     }
 
     /**
