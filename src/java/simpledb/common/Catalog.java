@@ -33,7 +33,7 @@ public class Catalog {
     /**
      * The list store all table id.
      */
-    private final List<Integer> listTableId;
+    private final Set<Integer> tableIdSet;
 
     /**
      * Constructor.
@@ -42,14 +42,14 @@ public class Catalog {
     public Catalog() {
         tableId2TableItem = new HashMap<>();
         tableName2TableItem = new HashMap<>();
-        listTableId = new ArrayList<>();
+        tableIdSet = new HashSet<>();
     }
 
     /**
      * A help class to manage table.
      */
     public static class TableItem implements Serializable {
-
+        
         @Serial
         private static final long serialVersionUID = 1L;
 
@@ -89,12 +89,12 @@ public class Catalog {
         TableItem oldTItem = tableName2TableItem.get(name);
         if(oldTItem != null){
             Integer oldId = Integer.valueOf(oldTItem.dbFile.getId());
-            listTableId.remove(oldId);
+            tableIdSet.remove(oldId);
         }
         TableItem item = new TableItem(file, name, pkeyField);
         tableId2TableItem.put(file.getId(), item);
         tableName2TableItem.put(name, item);
-        listTableId.add(file.getId());
+        tableIdSet.add(file.getId());
     }
 
     public void addTable(DbFile file, String name) {
@@ -120,7 +120,7 @@ public class Catalog {
      */
     public int getTableId(String name) throws NoSuchElementException {
         if(!isExistTableName(name)){
-            throw  new NoSuchElementException();
+            throw new NoSuchElementException();
         }
         return tableName2TableItem.get(name).dbFile.getId();
     }
@@ -179,7 +179,7 @@ public class Catalog {
     }
 
     public Iterator<Integer> tableIdIterator() {
-        return listTableId.iterator();
+        return tableIdSet.iterator();
     }
 
     public String getTableName(int id) {
@@ -193,7 +193,7 @@ public class Catalog {
      * Delete all tables from the catalog
      */
     public void clear() {
-        listTableId.clear();;
+        tableIdSet.clear();;
         tableId2TableItem.clear();
         tableName2TableItem.clear();
     }
