@@ -31,18 +31,12 @@ public class Catalog {
     private final Map<String, TableItem> tableName2TableItem;
 
     /**
-     * The list store all table id.
-     */
-    private final Set<Integer> tableIdSet;
-
-    /**
      * Constructor.
      * Creates a new, empty catalog.
      */
     public Catalog() {
         tableId2TableItem = new HashMap<>();
         tableName2TableItem = new HashMap<>();
-        tableIdSet = new HashSet<>();
     }
 
     /**
@@ -73,6 +67,10 @@ public class Catalog {
             name = n;
             primaryKey = p;
         }
+
+        public static TableItem getInstance(DbFile dbFile, String name, String primaryKey){
+            return new TableItem(dbFile, name, primaryKey);
+        }
     }
 
     /**
@@ -86,15 +84,9 @@ public class Catalog {
      * @param pkeyField the name of the primary key field
      */
     public void addTable(DbFile file, String name, String pkeyField) {
-        TableItem oldTItem = tableName2TableItem.get(name);
-        if(oldTItem != null){
-            Integer oldId = Integer.valueOf(oldTItem.dbFile.getId());
-            tableIdSet.remove(oldId);
-        }
-        TableItem item = new TableItem(file, name, pkeyField);
+        TableItem item = TableItem.getInstance(file, name, pkeyField);
         tableId2TableItem.put(file.getId(), item);
         tableName2TableItem.put(name, item);
-        tableIdSet.add(file.getId());
     }
 
     public void addTable(DbFile file, String name) {
@@ -131,7 +123,7 @@ public class Catalog {
      * @return          true if table with given name exists, otherwise false.
      */
     private boolean isExistTableName(String name)  {
-        return tableName2TableItem.get(name) == null;
+        return tableName2TableItem.get(name) != null;
     }
 
     /**
@@ -140,7 +132,7 @@ public class Catalog {
      * @return          true if table with given id exists, otherwise false.
      */
     private boolean isExistTableId(int id){
-        return tableId2TableItem.get(id) == null;
+        return tableId2TableItem.get(id) != null;
     }
 
     /**
@@ -165,25 +157,25 @@ public class Catalog {
      *                function passed to addTable
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
-        if(isExistTableId(tableid)){
+        if(!isExistTableId(tableid)){
             throw new NoSuchElementException();
         }
         return tableId2TableItem.get(tableid).dbFile;
     }
 
     public String getPrimaryKey(int tableid) {
-        if(isExistTableId(tableid)){
+        if(!isExistTableId(tableid)){
             throw new NoSuchElementException();
         }
         return tableId2TableItem.get(tableid).primaryKey;
     }
 
     public Iterator<Integer> tableIdIterator() {
-        return tableIdSet.iterator();
+        return tableId2TableItem.keySet().iterator();
     }
 
     public String getTableName(int id) {
-        if(isExistTableId(id)){
+        if(!isExistTableId(id)){
             throw new NoSuchElementException();
         }
         return tableId2TableItem.get(id).name;
@@ -193,7 +185,6 @@ public class Catalog {
      * Delete all tables from the catalog
      */
     public void clear() {
-        tableIdSet.clear();;
         tableId2TableItem.clear();
         tableName2TableItem.clear();
     }
