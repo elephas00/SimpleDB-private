@@ -6,7 +6,7 @@ import simpledb.storage.TupleDesc;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+
 
 /**
  * The Catalog keeps track of all available tables in the database and their

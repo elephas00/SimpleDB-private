@@ -7,9 +7,6 @@ public class StringUtils {
      * @return       true if str is blank, false if str is not blank
      */
     public static boolean isBlank(String str){
-        if(null == str || "".equals(str)){
-            return true;
-        }
-        return false;
+        return null == str || "".equals(str);
     }
 }
