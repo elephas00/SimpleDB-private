@@ -6,6 +6,7 @@ import simpledb.storage.TupleDesc;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 /**
@@ -35,8 +36,8 @@ public class Catalog {
      * Creates a new, empty catalog.
      */
     public Catalog() {
-        tableId2TableItem = new HashMap<>();
-        tableName2TableItem = new HashMap<>();
+        tableId2TableItem = new ConcurrentHashMap<>();
+        tableName2TableItem = new ConcurrentHashMap<>();
     }
 
     /**
