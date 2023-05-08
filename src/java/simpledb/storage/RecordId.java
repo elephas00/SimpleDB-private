@@ -53,9 +53,7 @@ public class RecordId implements Serializable {
         }
         if(o instanceof RecordId){
             RecordId rIdObj = (RecordId) o;
-            return rIdObj.getTupleNumber() == tupleNumber
-//                    && rIdObj.getPageId().equals(pageId)
-                    ;
+            return rIdObj.getTupleNumber() == tupleNumber && rIdObj.getPageId().equals(pageId);
         }
         return false;
     }
