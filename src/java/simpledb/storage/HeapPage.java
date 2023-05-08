@@ -23,7 +23,6 @@ public class HeapPage implements Page {
     final byte[] header;
     final Tuple[] tuples;
     final int numSlots;
-    boolean[] slotUsed;
     byte[] oldData;
     private final Byte oldDataLock = (byte) 0;
 
@@ -74,7 +73,7 @@ public class HeapPage implements Page {
      * @return the number of tuples on this page
      */
     private int getNumTuples() {
-        return (int) Math.floor((BufferPool.getPageSize()*8) / (td.getSize() * 8 + 1));
+        return (BufferPool.getPageSize()*8) / (1 + td.getSize()*8);
     }
 
     /**
@@ -83,7 +82,7 @@ public class HeapPage implements Page {
      * @return the number of bytes in the header of a page in a HeapFile with each tuple occupying tupleSize bytes
      */
     private int getHeaderSize() {
-        return (int) Math.ceil(numSlots / 8);
+        return (int) Math.ceil(1.0 * numSlots / 8);
     }
 
     /**
@@ -299,7 +298,10 @@ public class HeapPage implements Page {
      * Returns true if associated slot on this page is filled.
      */
     public boolean isSlotUsed(int i) {
-        return slotUsed[i];
+        int bytePos = i >> 3;
+        int bitPos = 1 << (7 - (i % 8));
+        boolean res = (header[bytePos] & bitPos) != 0;
+        return res;
     }
 
     /**
