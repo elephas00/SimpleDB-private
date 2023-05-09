@@ -299,7 +299,7 @@ public class HeapPage implements Page {
      */
     public boolean isSlotUsed(int i) {
         int bytePos = i >> 3;
-        int bitPos = 0x80 >> (7 - (i % 8));
+        int bitPos = 0x1 << (i % 8);
         boolean res = (header[bytePos] & bitPos) != 0;
         return res;
     }
