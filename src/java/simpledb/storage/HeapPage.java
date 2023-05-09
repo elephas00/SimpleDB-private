@@ -299,7 +299,7 @@ public class HeapPage implements Page {
      */
     public boolean isSlotUsed(int i) {
         int bytePos = i >> 3;
-        int bitPos = 1 << (7 - (i % 8));
+        int bitPos = 0x80 >> (7 - (i % 8));
         boolean res = (header[bytePos] & bitPos) != 0;
         return res;
     }
@@ -317,7 +317,13 @@ public class HeapPage implements Page {
      *         (note that this iterator shouldn't return tuples in empty slots!)
      */
     public Iterator<Tuple> iterator() {
-        return Arrays.asList(tuples).iterator();
+        List<Tuple> tupleList = new LinkedList<>();
+        for(Tuple tp : tuples){
+            if(tp != null){
+                tupleList.add(tp);
+            }
+        }
+        return tupleList.iterator();
     }
 
 }
