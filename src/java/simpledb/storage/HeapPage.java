@@ -3,7 +3,6 @@ package simpledb.storage;
 import simpledb.common.Catalog;
 import simpledb.common.Database;
 import simpledb.common.DbException;
-import simpledb.common.Debug;
 import simpledb.transaction.TransactionId;
 
 import java.io.*;
@@ -300,8 +299,7 @@ public class HeapPage implements Page {
     public boolean isSlotUsed(int i) {
         int bytePos = i >> 3;
         int bitPos = 0x1 << (i % 8);
-        boolean res = (header[bytePos] & bitPos) != 0;
-        return res;
+        return (header[bytePos] & bitPos) != 0;
     }
 
     /**
