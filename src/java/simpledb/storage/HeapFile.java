@@ -129,12 +129,14 @@ public class HeapFile implements DbFile {
     }
 
     public static class DbHeapFileIterator extends AbstractDbFileIterator{
+        private boolean isOpen;
         private HeapFile file;
         private TransactionId tid;
         private int pageNumber;
 
         private Iterator<Tuple> tupleIterator;
         private DbHeapFileIterator(HeapFile heapFile, TransactionId tid){
+            isOpen = false;
             file = heapFile;
             this.tid = tid;
             close();
@@ -145,6 +147,9 @@ public class HeapFile implements DbFile {
 
         @Override
         public boolean hasNext() throws TransactionAbortedException, DbException {
+            if(!isOpen){
+                return false;
+            }
             if(file.numPages() == 0){
                 return false;
             }
@@ -178,8 +183,14 @@ public class HeapFile implements DbFile {
             return true;
         }
 
+        private void checkIteratorOpen() throws NoSuchElementException {
+            if(!isOpen){
+                throw new NoSuchElementException("iterator was closed.");
+            }
+        }
         @Override
         protected Tuple readNext() throws DbException, TransactionAbortedException {
+            checkIteratorOpen();
             if(hasNext()){
                 return tupleIterator.next();
             }
@@ -188,17 +199,19 @@ public class HeapFile implements DbFile {
 
         @Override
         public void open() throws DbException, TransactionAbortedException {
+            isOpen = true;
             tupleIterator = null;
         }
 
         @Override
         public void rewind() throws DbException, TransactionAbortedException {
+            checkIteratorOpen();
             tupleIterator = null;
         }
 
         @Override
         public void close(){
-            pageNumber = file.numPages();
+            isOpen = false;
         }
     }
 }
