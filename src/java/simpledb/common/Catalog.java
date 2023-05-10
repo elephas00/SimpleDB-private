@@ -74,6 +74,13 @@ public class Catalog {
         }
     }
 
+    public DbFile getTable(int tableId){
+        if(!isExistTableId(tableId)){
+            throw new NoSuchElementException();
+        }
+        return tableId2TableItem.get(tableId).dbFile;
+    }
+
     /**
      * Add a new table to the catalog.
      * This table's contents are stored in the specified DbFile.

@@ -66,6 +66,9 @@ public class HeapPage implements Page {
         setBeforeImage();
     }
 
+    public static HeapPage getInstance(HeapPageId id, byte[] data) throws IOException {
+        return new HeapPage(id, data);
+    }
     /**
      * Retrieve the number of tuples on this page.
      *

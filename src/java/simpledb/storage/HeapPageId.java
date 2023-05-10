@@ -24,6 +24,10 @@ public class HeapPageId implements PageId {
         pageNo = pgNo;
     }
 
+    public static HeapPageId getInstance(int tableId, int pgNo){
+        return new HeapPageId(tableId, pgNo);
+    }
+
     /**
      * @return the table associated with this PageId
      */

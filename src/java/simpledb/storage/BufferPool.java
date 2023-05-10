@@ -12,6 +12,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import static simpledb.common.Database.getCatalog;
+
 /**
  * BufferPool manages the reading and writing of pages into memory from
  * disk. Access methods call into it to retrieve pages, and it fetches
@@ -35,7 +37,6 @@ public class BufferPool {
 
     private int pageNum;
 
-    private DbFile dbFile;
     /**
      * Default number of pages passed to the constructor. This is used by
      * other classes. BufferPool should use the numPages argument to the
@@ -72,9 +73,9 @@ public class BufferPool {
      * Will acquire a lock and may block if that lock is held by another
      * transaction.
      * <p>
-     * The retrieved page should be loked up in the buffer pool.  If it
+     * The retrieved page should be locked up in the buffer pool.  If it
      * is present, it should be returned.  If it is not present, it should
-     *e added to the buffer pool and returned.  If there is insufficient
+     * be added to the buffer pool and returned.  If there is insufficient
      * space in the buffer pool, a page should be evicted and the new page
      * should be added in its place.
      *
@@ -95,10 +96,9 @@ public class BufferPool {
             // TODO finish replace strategy
             throw new DbException("buffer poll is full, lab1 do not evict page.");
         }
-//        Page loadPage = dbFile.readPage(pid);
-//        pageList.add(loadPage);
-//        return loadPage;
-        return null;
+        Page loadPage = Database.getCatalog().getTable(pid.getTableId()).readPage(pid);
+        pageList.add(loadPage);
+        return loadPage;
     }
 
     /**
