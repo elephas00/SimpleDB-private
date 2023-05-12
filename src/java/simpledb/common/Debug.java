@@ -27,6 +27,7 @@ public class Debug {
         }
     }
 
+
     private static final int DEFAULT_LEVEL = 0;
 
     /**

@@ -78,6 +78,35 @@ public class TupleDesc implements Serializable {
         size = calcSize(typeAr);
     }
 
+    public static TupleDesc getAliasWrappedInstance(TupleDesc origin, String alias){
+        String[] aliasedField = new String[origin.numFields()];
+        for(int i = 0; i < origin.numFields(); i++){
+            aliasedField[i] = alias + "." + origin.getFieldName(i);
+        }
+        return new TupleDesc(origin.typeArray, aliasedField);
+    }
+    public static TupleDesc getInstance(Type[] typeAr, String[] fieldAr){
+        return new TupleDesc(typeAr, fieldAr);
+    }
+
+    public static TupleDesc getInstance(Type[] typeAr){
+        return new TupleDesc(typeAr);
+    }
+    public TupleDesc(Type[] typeAr, String[] fieldAr, String tableAlias) {
+        // a valid tuple description must have at least one filed.
+        if(typeAr == null || typeAr.length == 0){
+            throw new IllegalArgumentException();
+        }
+        int len = typeAr.length;
+        ArrayList<TDItem> items = new ArrayList<>(len);
+        for(int i = 0; i < len; i++){
+            items.add(new TDItem(typeAr[i], tableAlias + "." + fieldAr[i]));
+        }
+        typeArray = typeAr;
+        fieldArray = fieldAr;
+        listTDItem = items;
+        size = calcSize(typeAr);
+    }
     /**
      * Calculate the size of given type array.
      * @param typeAr    given type array to calculate.
@@ -135,6 +164,14 @@ public class TupleDesc implements Serializable {
         }
         return fieldArray[i];
     }
+
+    public String getFieldName(int i, String tableAlias) throws NoSuchElementException {
+        if(i < 0 || i >= numFields()){
+            throw new NoSuchElementException();
+        }
+        return tableAlias + "." + fieldArray[i];
+    }
+
 
     /**
      * Gets the type of the ith field of this TupleDesc.
@@ -235,6 +272,22 @@ public class TupleDesc implements Serializable {
         builder.append(listTDItem.get(0).toString());
         for(int i = 1; i < numFields(); i++){
             builder.append(',')
+                    .append(listTDItem.get(i).toString())
+                    .append(')');
+        }
+        return builder.toString();
+    }
+
+    private String toString(String tableAlias){
+        StringBuilder builder = new StringBuilder();
+        builder.append(tableAlias)
+                .append('.')
+                .append(listTDItem.get(0)
+                        .toString());
+        for(int i = 1; i < numFields(); i++){
+            builder.append(',')
+                    .append(tableAlias)
+                    .append('.')
                     .append(listTDItem.get(i).toString())
                     .append(')');
         }

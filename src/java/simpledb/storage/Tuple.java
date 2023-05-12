@@ -82,8 +82,13 @@ public class Tuple implements Serializable {
      * where \t is any whitespace (except a newline)
      */
     public String toString() {
-        // TODO: some code goes here
-        throw new UnsupportedOperationException("Implement this");
+        StringBuilder builder = new StringBuilder();
+        builder.append(getField(0));
+        for(int i = 1; i < tupleDesc.numFields(); i++){
+            builder.append("\t")
+                    .append(getField(i));
+        }
+        return builder.toString();
     }
 
     /**

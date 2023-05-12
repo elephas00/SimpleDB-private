@@ -119,6 +119,9 @@ public class Catalog {
      * @throws NoSuchElementException if the table doesn't exist
      */
     public int getTableId(String name) throws NoSuchElementException {
+        if(name == null){
+            throw new NoSuchElementException();
+        }
         TableItem item = getTableByName(name);
         return item.dbFile.getId();
     }

@@ -72,7 +72,10 @@ public class HeapFile implements DbFile {
 
     // see DbFile.java for javadocs
     public Page readPage(PageId pid) {
-        int offset = pid.getPageNumber()*BufferPool.getPageSize();
+        long offset = pid.getPageNumber()*BufferPool.getPageSize();
+//        Debug.log("file length:" + file.length() +"; offset:" + offset + "; page size:" + BufferPool.getPageSize());
+//        Debug.log(offset > Integer.MAX_VALUE ? "offset overflow" : "offset valid");
+//        Debug.log("read page " + pid.getPageNumber());
         byte[] buf;
         if(Database.getCatalog().getTableName(pid.getTableId()) == null){
             throw new IllegalArgumentException();
@@ -80,7 +83,16 @@ public class HeapFile implements DbFile {
         try {
             InputStream is = new FileInputStream(file);
             buf = new byte[BufferPool.getPageSize()];
-            is.read(buf, offset, BufferPool.getPageSize());
+//            is.read(buf);
+//            is.read(buf, 0, BufferPool.getPageSize());
+//            if(offset + BufferPool.getPageSize() >= file.length()){
+//                is.skip(offset);
+//                is.read(buf);
+//            }else{
+//                is.read(buf, (int) offset, BufferPool.getPageSize());
+//            }
+            is.skip(offset);
+            is.read(buf);
             is.close();
             HeapPage res = HeapPage.getInstance(
                     HeapPageId.getInstance(pid.getTableId(), pid.getPageNumber()),
@@ -177,7 +189,8 @@ public class HeapFile implements DbFile {
             tupleIterator = page.iterator();
         }
         private boolean hasNextPage(){
-            if(pageNumber + 1 == file.numPages()){
+            int numpages = file.numPages();
+            if(pageNumber + 1 >= numpages){
                 return false;
             }
             return true;
