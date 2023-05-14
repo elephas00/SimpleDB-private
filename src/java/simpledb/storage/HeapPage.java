@@ -3,12 +3,10 @@ package simpledb.storage;
 import simpledb.common.Catalog;
 import simpledb.common.Database;
 import simpledb.common.DbException;
-import simpledb.common.Debug;
 import simpledb.transaction.TransactionId;
 
 import java.io.*;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 /**
  * Each instance of HeapPage stores data for one page of HeapFiles and
@@ -24,7 +22,6 @@ public class HeapPage implements Page {
     final byte[] header;
     final Tuple[] tuples;
     final int numSlots;
-
     byte[] oldData;
     private final Byte oldDataLock = (byte) 0;
 
@@ -69,15 +66,16 @@ public class HeapPage implements Page {
         setBeforeImage();
     }
 
+    public static HeapPage getInstance(HeapPageId id, byte[] data) throws IOException {
+        return new HeapPage(id, data);
+    }
     /**
      * Retrieve the number of tuples on this page.
      *
      * @return the number of tuples on this page
      */
     private int getNumTuples() {
-        // TODO: some code goes here
-        return 0;
-
+        return (BufferPool.getPageSize()*8) / (1 + td.getSize()*8);
     }
 
     /**
@@ -86,10 +84,7 @@ public class HeapPage implements Page {
      * @return the number of bytes in the header of a page in a HeapFile with each tuple occupying tupleSize bytes
      */
     private int getHeaderSize() {
-
-        // TODO: some code goes here
-        return 0;
-
+        return (int) Math.ceil(1.0 * numSlots / 8);
     }
 
     /**
@@ -121,8 +116,7 @@ public class HeapPage implements Page {
      * @return the PageId associated with this page.
      */
     public HeapPageId getId() {
-        // TODO: some code goes here
-        throw new UnsupportedOperationException("implement this");
+        return pid;
     }
 
     /**
@@ -293,16 +287,22 @@ public class HeapPage implements Page {
      * Returns the number of unused (i.e., empty) slots on this page.
      */
     public int getNumUnusedSlots() {
-        // TODO: some code goes here
-        return 0;
+        int count = 0;
+        for(Tuple tp : tuples){
+            if(tp == null){
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
      * Returns true if associated slot on this page is filled.
      */
     public boolean isSlotUsed(int i) {
-        // TODO: some code goes here
-        return false;
+        int bytePos = i >> 3;
+        int bitPos = 0x1 << (i % 8);
+        return (header[bytePos] & bitPos) != 0;
     }
 
     /**
@@ -318,8 +318,13 @@ public class HeapPage implements Page {
      *         (note that this iterator shouldn't return tuples in empty slots!)
      */
     public Iterator<Tuple> iterator() {
-        // TODO: some code goes here
-        return null;
+        List<Tuple> tupleList = new LinkedList<>();
+        for(Tuple tp : tuples){
+            if(tp != null){
+                tupleList.add(tp);
+            }
+        }
+        return tupleList.iterator();
     }
 
 }
