@@ -5,6 +5,7 @@ import simpledb.storage.Tuple;
 import simpledb.storage.TupleDesc;
 import simpledb.transaction.TransactionAbortedException;
 
+import java.io.Serial;
 import java.util.NoSuchElementException;
 
 /**
@@ -12,13 +13,13 @@ import java.util.NoSuchElementException;
  */
 public class Filter extends Operator {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     private final Predicate predicate;
 
     private final OpIterator child;
 
-    private boolean isOpen;
 
     /**
      * Constructor accepts a predicate to apply and a child operator to read
@@ -40,23 +41,16 @@ public class Filter extends Operator {
         return child.getTupleDesc();
     }
 
-    private void checkFilterIsOpen() throws DbException{
-        if(!isOpen){
-            throw new DbException("this filter is closed. ");
-        }
-    }
-
     public void open() throws DbException, NoSuchElementException,
             TransactionAbortedException {
-        isOpen = true;
+        child.open();
     }
 
     public void close() {
-        isOpen = false;
+        child.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-        checkFilterIsOpen();
         child.rewind();
     }
 
@@ -71,9 +65,7 @@ public class Filter extends Operator {
      */
     protected Tuple fetchNext() throws NoSuchElementException,
             TransactionAbortedException, DbException {
-        checkFilterIsOpen();
-        // TODO: some code goes here
-        return null;
+        return child.next();
     }
 
     @Override
