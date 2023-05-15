@@ -100,7 +100,8 @@ public class Predicate implements Serializable {
      * @return true if the comparison is true, false otherwise.
      */
     public boolean filter(Tuple t) {
-        return operand.compare(operator, t.getField(field));
+        // just like table_name.column < -5, Operand in the predicate is after the operator.
+        return t.getField(field).compare(this.operator, operand);
     }
 
     /**

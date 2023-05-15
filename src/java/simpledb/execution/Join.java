@@ -68,13 +68,16 @@ public class Join extends Operator {
 
     public void open() throws DbException, NoSuchElementException,
             TransactionAbortedException {
+        super.open();
         child1.open();
         child2.open();
+
     }
 
     public void close() {
         child1.close();
         child2.close();
+        super.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
@@ -124,6 +127,7 @@ public class Join extends Operator {
 
     @Override
     public OpIterator[] getChildren() {
+
         // TODO: some code goes here
         return null;
     }
