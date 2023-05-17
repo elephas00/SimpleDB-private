@@ -1,7 +1,14 @@
 package simpledb.execution;
 
+import simpledb.common.DbException;
 import simpledb.common.Type;
+import simpledb.storage.Field;
+import simpledb.storage.IntField;
 import simpledb.storage.Tuple;
+import simpledb.storage.TupleDesc;
+import simpledb.transaction.TransactionAbortedException;
+
+import java.util.*;
 
 /**
  * Knows how to compute some aggregate over a set of IntFields.
@@ -9,6 +16,17 @@ import simpledb.storage.Tuple;
 public class IntegerAggregator implements Aggregator {
 
     private static final long serialVersionUID = 1L;
+
+    private final int groupByField;
+
+    private final int aggregateField;
+
+    private final Type groupByFieldType;
+    private Map<Field, List<Field>> groupByMap;
+
+    private final Aggregator.Op aggregationOperator;
+
+    List<Field> noGroupList;
 
     /**
      * Aggregate constructor
@@ -22,7 +40,15 @@ public class IntegerAggregator implements Aggregator {
      */
 
     public IntegerAggregator(int gbfield, Type gbfieldtype, int afield, Op what) {
-        // TODO: some code goes here
+        groupByField = gbfield;
+        aggregateField = afield;
+        groupByFieldType = gbfieldtype;
+        aggregationOperator = what;
+        if(NO_GROUPING == gbfield){
+            noGroupList = new LinkedList<>();
+        }else{
+            groupByMap = new HashMap<>();
+        }
     }
 
     /**
@@ -32,7 +58,20 @@ public class IntegerAggregator implements Aggregator {
      * @param tup the Tuple containing an aggregate field and a group-by field
      */
     public void mergeTupleIntoGroup(Tuple tup) {
-        // TODO: some code goes here
+        // merge tuples when no group by clause.
+        if(NO_GROUPING == groupByField){
+            noGroupList.add(tup.getField(aggregateField));
+            return;
+        }
+        // merge tuples when there exists group by clause.
+        Field key = tup.getField(groupByField);
+        Field value = tup.getField(aggregateField);
+        List<Field> valueList = groupByMap.get(key);
+        if(valueList == null){
+            valueList = new LinkedList<>();
+            groupByMap.put(key, valueList);
+        }
+        valueList.add(value);
     }
 
     /**
@@ -44,9 +83,74 @@ public class IntegerAggregator implements Aggregator {
      *         the constructor.
      */
     public OpIterator iterator() {
-        // TODO: some code goes here
-        throw new
-        UnsupportedOperationException("please implement me for lab2");
+        return new IntegerAggregatorOpIterator(this);
     }
 
+    private static class IntegerAggregatorOpIterator extends Operator{
+        private IntegerAggregator aggregator;
+
+        private TupleDesc tupleDesc;
+
+        public IntegerAggregatorOpIterator(IntegerAggregator aggregator){
+            this.aggregator = aggregator;
+            if(NO_GROUPING == aggregator.groupByField){
+                computeNoGrouping();
+            }else{
+                computeGrouping();
+            }
+        }
+
+        private void computeGrouping(){
+            aggregator.groupByMap.forEach((key, valueList)->{
+                Tuple newTuple = Tuple.getInstance(tupleDesc);
+                IntField field = Aggregator.computeAggregating(valueList, aggregator.aggregationOperator);
+                newTuple.setField(0, key);
+                newTuple.setField(1, field);
+                tupleList.add(newTuple);
+            });
+        }
+
+
+        /**
+         * compute aggregate result when there is no group by clause.
+         */
+        private void computeNoGrouping(){
+            Tuple newTuple = Tuple.getInstance(tupleDesc);
+            IntField field = Aggregator.computeAggregating(aggregator.noGroupList, aggregator.aggregationOperator);
+            newTuple.setField(0, field);
+            tupleList.add(newTuple);
+        }
+
+        private List<Tuple> tupleList;
+
+        private Iterator<Tuple> it;
+
+        @Override
+        public void rewind() throws DbException, TransactionAbortedException {
+            it = tupleList.iterator();
+        }
+
+        @Override
+        protected Tuple fetchNext() throws DbException, TransactionAbortedException {
+            if(it.hasNext()){
+                return it.next();
+            }
+            return null;
+        }
+
+        @Override
+        public OpIterator[] getChildren() {
+            // TODO
+        }
+
+        @Override
+        public void setChildren(OpIterator[] children) {
+            // TODO
+        }
+
+        @Override
+        public TupleDesc getTupleDesc() {
+            // TODO
+        }
+    }
 }
