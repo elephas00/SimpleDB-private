@@ -84,12 +84,12 @@ public class IntegerAggregator implements Aggregator {
      * @param aggregate         the aggregate operator, invoker of this aggregation operator.
      * @return                 a instance of integer aggregator.
      */
-    public static IntegerAggregator getInstance(Op aop, int groupByField, int aggregateField, Aggregate aggregate) {
+    public static IntegerAggregator getInstance(Op aop, int groupByField, int aggregateField, Type groupByType, Aggregate aggregate) {
         IntegerAggregator instance;
         if (NO_GROUPING == groupByField) {
             instance = new IntegerAggregator(groupByField, null, aggregateField, aop);
         } else {
-            instance = new IntegerAggregator(groupByField, null, aggregateField, aop);
+            instance = new IntegerAggregator(groupByField, groupByType, aggregateField, aop);
         }
         instance.aggregate = aggregate;
         return instance;

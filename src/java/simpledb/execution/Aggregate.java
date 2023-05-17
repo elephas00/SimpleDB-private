@@ -50,14 +50,12 @@ public class Aggregate extends Operator {
         groupByField = gfield;
         operator = aop;
         tupleDesc = calcTupleDesc();
-        Type aggregateFieldType = child.getTupleDesc().getFieldType(aggregateField);
-        if(Type.INT_TYPE.equals(aggregateFieldType)){
-            // TODO
-            //            aggregator = new IntegerAggregator();
-        }else if(Type.STRING_TYPE.equals(aggregateFieldType)){
-            // TODO
-            //            aggregator = new StringAggregator();
-
+        Type groupByFieldType = child.getTupleDesc().getFieldType(groupByField);
+        Type aggregateFieldTYpe = child.getTupleDesc().getFieldType(afield);
+        if(Type.INT_TYPE.equals(aggregateFieldTYpe)){
+            aggregator = IntegerAggregator.getInstance(aop, gfield, aggregateField, groupByFieldType,this);
+        }else if(Type.STRING_TYPE.equals(aggregateFieldTYpe)){
+            aggregator = StringAggregator.getInstance(aop, gfield, aggregateField, groupByFieldType, this);
         }else {
             throw new IllegalStateException("impossible to reach here.");
         }
@@ -129,7 +127,11 @@ public class Aggregate extends Operator {
             TransactionAbortedException {
         super.open();
         child.open();
+        while(child.hasNext()){
+            aggregator.mergeTupleIntoGroup(child.next());
+        }
         iterator = aggregator.iterator();
+        iterator.open();
     }
 
     /**
@@ -147,7 +149,7 @@ public class Aggregate extends Operator {
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-        iterator = aggregator.iterator();
+        iterator.rewind();
     }
 
     /**
@@ -168,7 +170,9 @@ public class Aggregate extends Operator {
     public void close() {
         super.close();
         child.close();
+        iterator.close();
         iterator = null;
+
     }
 
     @Override
