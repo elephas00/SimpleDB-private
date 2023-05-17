@@ -1,6 +1,5 @@
 package simpledb.execution;
 
-import net.sf.antcontrib.util.ThreadPool;
 import simpledb.common.DbException;
 import simpledb.common.Type;
 import simpledb.storage.Field;
@@ -57,7 +56,7 @@ public class StringAggregator implements Aggregator {
             tupleDesc = TupleDesc.getInstance(new Type[]{Type.INT_TYPE});
         }else{
             groupByMap = new HashMap<>();
-            tupleDesc = TupleDesc.getInstance(new Type[]{gbfieldtype, Type.INT_TYPE});
+            tupleDesc = TupleDesc.getInstance(new Type[]{groupByType, Type.INT_TYPE});
         }
     }
 

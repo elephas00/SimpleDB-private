@@ -72,7 +72,7 @@ public class IntegerAggregator implements Aggregator {
             tupleDesc = TupleDesc.getInstance(new Type[]{Type.INT_TYPE});
         } else {
             groupByMap = new HashMap<>();
-            tupleDesc = TupleDesc.getInstance(new Type[]{gbfieldtype, Type.INT_TYPE});
+            tupleDesc = TupleDesc.getInstance(new Type[]{groupByFieldType, Type.INT_TYPE});
         }
     }
 

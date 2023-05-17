@@ -2,11 +2,11 @@ package simpledb.execution;
 
 import simpledb.common.DbException;
 import simpledb.common.Type;
-import simpledb.execution.Aggregator.Op;
 import simpledb.storage.Tuple;
 import simpledb.storage.TupleDesc;
 import simpledb.transaction.TransactionAbortedException;
 
+import java.io.Serial;
 import java.util.NoSuchElementException;
 
 /**
@@ -15,7 +15,7 @@ import java.util.NoSuchElementException;
  * single column.
  */
 public class Aggregate extends Operator {
-
+    @Serial
     private static final long serialVersionUID = 1L;
 
     private OpIterator child;
@@ -31,6 +31,7 @@ public class Aggregate extends Operator {
     private final Aggregator aggregator;
 
     private OpIterator iterator;
+
     /**
      * Constructor.
      * <p>
@@ -52,16 +53,17 @@ public class Aggregate extends Operator {
         tupleDesc = calcTupleDesc();
         Type groupByFieldType = child.getTupleDesc().getFieldType(groupByField);
         Type aggregateFieldTYpe = child.getTupleDesc().getFieldType(afield);
-        if(Type.INT_TYPE.equals(aggregateFieldTYpe)){
-            aggregator = IntegerAggregator.getInstance(aop, gfield, aggregateField, groupByFieldType,this);
-        }else if(Type.STRING_TYPE.equals(aggregateFieldTYpe)){
+        if (Type.INT_TYPE.equals(aggregateFieldTYpe)) {
+            aggregator = IntegerAggregator.getInstance(aop, gfield, aggregateField, groupByFieldType, this);
+        } else if (Type.STRING_TYPE.equals(aggregateFieldTYpe)) {
             aggregator = StringAggregator.getInstance(aop, gfield, aggregateField, groupByFieldType, this);
-        }else {
+        } else {
             throw new IllegalStateException("impossible to reach here.");
         }
     }
-    private TupleDesc calcTupleDesc(){
-        if(Aggregator.NO_GROUPING == groupByField){
+
+    private TupleDesc calcTupleDesc() {
+        if (Aggregator.NO_GROUPING == groupByField) {
             Type[] typeAr = new Type[]{child.getTupleDesc().getFieldType(aggregateField)};
             String[] fieldAr = new String[]{aggregateFieldName()};
             return TupleDesc.getInstance(typeAr, fieldAr);
@@ -76,10 +78,11 @@ public class Aggregate extends Operator {
         };
         return TupleDesc.getInstance(typeAr, fieldAr);
     }
+
     /**
      * @return If this aggregate is accompanied by a groupby, return the groupby
-     *         field index in the <b>INPUT</b> tuples. If not, return
-     *         {@link Aggregator#NO_GROUPING}
+     * field index in the <b>INPUT</b> tuples. If not, return
+     * {@link Aggregator#NO_GROUPING}
      */
     public int groupField() {
         return groupByField;
@@ -87,11 +90,11 @@ public class Aggregate extends Operator {
 
     /**
      * @return If this aggregate is accompanied by a group by, return the name
-     *         of the groupby field in the <b>OUTPUT</b> tuples. If not, return
-     *         null;
+     * of the groupby field in the <b>OUTPUT</b> tuples. If not, return
+     * null;
      */
     public String groupFieldName() {
-        if(Aggregator.NO_GROUPING == groupByField){
+        if (Aggregator.NO_GROUPING == groupByField) {
             return null;
         }
         return child.getTupleDesc().getFieldName(groupByField);
@@ -106,7 +109,7 @@ public class Aggregate extends Operator {
 
     /**
      * @return return the name of the aggregate field in the <b>OUTPUT</b>
-     *         tuples
+     * tuples
      */
     public String aggregateFieldName() {
         return child.getTupleDesc().getFieldName(aggregateField);
@@ -127,7 +130,7 @@ public class Aggregate extends Operator {
             TransactionAbortedException {
         super.open();
         child.open();
-        while(child.hasNext()){
+        while (child.hasNext()) {
             aggregator.mergeTupleIntoGroup(child.next());
         }
         iterator = aggregator.iterator();
@@ -142,7 +145,7 @@ public class Aggregate extends Operator {
      * aggregate. Should return null if there are no more tuples.
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
-        if(iterator.hasNext()){
+        if (iterator.hasNext()) {
             return iterator.next();
         }
         return null;
@@ -177,7 +180,7 @@ public class Aggregate extends Operator {
 
     @Override
     public OpIterator[] getChildren() {
-        return new OpIterator[]{ child };
+        return new OpIterator[]{child};
     }
 
     @Override
