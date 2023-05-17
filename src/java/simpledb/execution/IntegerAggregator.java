@@ -49,7 +49,7 @@ public class IntegerAggregator implements Aggregator {
      * (GroupByType, INT_TYPE) if there is a group by clause.
      * (INT_TYPE) if there is no group by clause.
      */
-    private TupleDesc tupleDesc;
+    private final TupleDesc tupleDesc;
 
     /**
      * Aggregate constructor
@@ -82,7 +82,7 @@ public class IntegerAggregator implements Aggregator {
      * @param groupByField      the group by field of tuple, may be -1 means there is no group clause.
      * @param aggregateField    the aggregate field of tuple.
      * @param aggregate         the aggregate operator, invoker of this aggregation operator.
-     * @return
+     * @return                 a instance of integer aggregator.
      */
     public static IntegerAggregator getInstance(Op aop, int groupByField, int aggregateField, Aggregate aggregate) {
         IntegerAggregator instance;
@@ -137,13 +137,13 @@ public class IntegerAggregator implements Aggregator {
         /**
          * the invoker of this iterator.
          */
-        private IntegerAggregator aggregator;
+        private final IntegerAggregator aggregator;
 
         /**
          * the tuple description of the aggregation result,
          * pass in with aggregator, the invoker of this iterator.
          */
-        private TupleDesc tupleDesc;
+        private final TupleDesc tupleDesc;
 
         /**
          * the result of extends Operator, redundant attribute.
@@ -154,7 +154,7 @@ public class IntegerAggregator implements Aggregator {
         /**
          * list that stores aggregation results.
          */
-        private List<Tuple> tupleList;
+        private final List<Tuple> tupleList;
 
         /**
          * the iterator of tupleList.
