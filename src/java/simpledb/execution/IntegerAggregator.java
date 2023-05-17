@@ -8,6 +8,7 @@ import simpledb.storage.Tuple;
 import simpledb.storage.TupleDesc;
 import simpledb.transaction.TransactionAbortedException;
 
+import java.io.Serial;
 import java.util.*;
 
 /**
@@ -15,6 +16,7 @@ import java.util.*;
  */
 public class IntegerAggregator implements Aggregator {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     private final int groupByField;
@@ -22,11 +24,32 @@ public class IntegerAggregator implements Aggregator {
     private final int aggregateField;
 
     private final Type groupByFieldType;
+
+    /**
+     * a map to restore the group by field and the aggregate filed that merged in this aggregation operator.
+     * this map should be use when aggregator has a group by clause.
+     */
     private Map<Field, List<Field>> groupByMap;
 
+    /**
+     * a list to store the aggregate field that merged in this aggregation operator.
+     * this list should be use when aggregator have no group by clause.
+     * after aggregation, there will only one tuple left.
+     */
     private final Aggregator.Op aggregationOperator;
 
     List<Field> noGroupList;
+
+    private OpIterator child;
+
+    private Aggregate aggregate;
+
+    /**
+     * the tuple description of the aggregation result.
+     * (GroupByType, INT_TYPE) if there is a group by clause.
+     * (INT_TYPE) if there is no group by clause.
+     */
+    private TupleDesc tupleDesc;
 
     /**
      * Aggregate constructor
@@ -44,11 +67,32 @@ public class IntegerAggregator implements Aggregator {
         aggregateField = afield;
         groupByFieldType = gbfieldtype;
         aggregationOperator = what;
-        if(NO_GROUPING == gbfield){
+        if (NO_GROUPING == gbfield) {
             noGroupList = new LinkedList<>();
-        }else{
+            tupleDesc = TupleDesc.getInstance(new Type[]{Type.INT_TYPE});
+        } else {
             groupByMap = new HashMap<>();
+            tupleDesc = TupleDesc.getInstance(new Type[]{gbfieldtype, Type.INT_TYPE});
         }
+    }
+
+    /**
+     * getInstance method, to new a instance of integer aggregator class.
+     * @param aop              aggregation operator
+     * @param groupByField      the group by field of tuple, may be -1 means there is no group clause.
+     * @param aggregateField    the aggregate field of tuple.
+     * @param aggregate         the aggregate operator, invoker of this aggregation operator.
+     * @return
+     */
+    public static IntegerAggregator getInstance(Op aop, int groupByField, int aggregateField, Aggregate aggregate) {
+        IntegerAggregator instance;
+        if (NO_GROUPING == groupByField) {
+            instance = new IntegerAggregator(groupByField, null, aggregateField, aop);
+        } else {
+            instance = new IntegerAggregator(groupByField, null, aggregateField, aop);
+        }
+        instance.aggregate = aggregate;
+        return instance;
     }
 
     /**
@@ -59,7 +103,7 @@ public class IntegerAggregator implements Aggregator {
      */
     public void mergeTupleIntoGroup(Tuple tup) {
         // merge tuples when no group by clause.
-        if(NO_GROUPING == groupByField){
+        if (NO_GROUPING == groupByField) {
             noGroupList.add(tup.getField(aggregateField));
             return;
         }
@@ -67,7 +111,7 @@ public class IntegerAggregator implements Aggregator {
         Field key = tup.getField(groupByField);
         Field value = tup.getField(aggregateField);
         List<Field> valueList = groupByMap.get(key);
-        if(valueList == null){
+        if (valueList == null) {
             valueList = new LinkedList<>();
             groupByMap.put(key, valueList);
         }
@@ -78,30 +122,68 @@ public class IntegerAggregator implements Aggregator {
      * Create a OpIterator over group aggregate results.
      *
      * @return a OpIterator whose tuples are the pair (groupVal, aggregateVal)
-     *         if using group, or a single (aggregateVal) if no grouping. The
-     *         aggregateVal is determined by the type of aggregate specified in
-     *         the constructor.
+     * if using group, or a single (aggregateVal) if no grouping. The
+     * aggregateVal is determined by the type of aggregate specified in
+     * the constructor.
      */
     public OpIterator iterator() {
         return new IntegerAggregatorOpIterator(this);
     }
 
-    private static class IntegerAggregatorOpIterator extends Operator{
+    /**
+     * a help class to generate a OpIterator of a aggregator.
+     */
+    private static class IntegerAggregatorOpIterator extends Operator {
+        /**
+         * the invoker of this iterator.
+         */
         private IntegerAggregator aggregator;
 
+        /**
+         * the tuple description of the aggregation result,
+         * pass in with aggregator, the invoker of this iterator.
+         */
         private TupleDesc tupleDesc;
 
-        public IntegerAggregatorOpIterator(IntegerAggregator aggregator){
+        /**
+         * the result of extends Operator, redundant attribute.
+         * likewise, the set children and get children method also redundant.
+         */
+        private OpIterator child;
+
+        /**
+         * list that stores aggregation results.
+         */
+        private List<Tuple> tupleList;
+
+        /**
+         * the iterator of tupleList.
+         */
+        private Iterator<Tuple> it;
+
+        /**
+         * Constructor, aggregator is the invoker of this iterator,
+         * all data need to aggregate are store in the aggregator, the invoker.
+         *
+         * @param aggregator a integer aggregator, the invoker.
+         */
+        public IntegerAggregatorOpIterator(IntegerAggregator aggregator) {
             this.aggregator = aggregator;
-            if(NO_GROUPING == aggregator.groupByField){
+            this.tupleDesc = aggregator.tupleDesc;
+            tupleList = new LinkedList<>();
+            if (NO_GROUPING == aggregator.groupByField) {
                 computeNoGrouping();
-            }else{
+            } else {
                 computeGrouping();
             }
+            it = tupleList.iterator();
         }
 
-        private void computeGrouping(){
-            aggregator.groupByMap.forEach((key, valueList)->{
+        /**
+         * compute if there is a group by clause.
+         */
+        private void computeGrouping() {
+            aggregator.groupByMap.forEach((key, valueList) -> {
                 Tuple newTuple = Tuple.getInstance(tupleDesc);
                 IntField field = Aggregator.computeAggregating(valueList, aggregator.aggregationOperator);
                 newTuple.setField(0, key);
@@ -110,20 +192,15 @@ public class IntegerAggregator implements Aggregator {
             });
         }
 
-
         /**
          * compute aggregate result when there is no group by clause.
          */
-        private void computeNoGrouping(){
+        private void computeNoGrouping() {
             Tuple newTuple = Tuple.getInstance(tupleDesc);
             IntField field = Aggregator.computeAggregating(aggregator.noGroupList, aggregator.aggregationOperator);
             newTuple.setField(0, field);
             tupleList.add(newTuple);
         }
-
-        private List<Tuple> tupleList;
-
-        private Iterator<Tuple> it;
 
         @Override
         public void rewind() throws DbException, TransactionAbortedException {
@@ -132,7 +209,7 @@ public class IntegerAggregator implements Aggregator {
 
         @Override
         protected Tuple fetchNext() throws DbException, TransactionAbortedException {
-            if(it.hasNext()){
+            if (it.hasNext()) {
                 return it.next();
             }
             return null;
@@ -140,17 +217,17 @@ public class IntegerAggregator implements Aggregator {
 
         @Override
         public OpIterator[] getChildren() {
-            // TODO
+            return new OpIterator[]{child};
         }
 
         @Override
         public void setChildren(OpIterator[] children) {
-            // TODO
+            child = children[0];
         }
 
         @Override
         public TupleDesc getTupleDesc() {
-            // TODO
+            return tupleDesc;
         }
     }
 }
