@@ -1,9 +1,6 @@
 package simpledb.storage;
 
-import simpledb.common.Database;
-import simpledb.common.DbException;
-import simpledb.common.Debug;
-import simpledb.common.Permissions;
+import simpledb.common.*;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
 
@@ -122,7 +119,8 @@ public class HeapFile implements DbFile {
     // see DbFile.java for javadocs
     public List<Page> insertTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
-        for(int i = 0; i < numPages(); i++){
+        int numPages = numPages();
+        for(int i = 0; i < numPages; i++){
             HeapPageId pid = HeapPageId.getInstance(getTableId(), i);
             Page page = Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
             HeapPage heapPage = (HeapPage) page;
@@ -133,7 +131,13 @@ public class HeapFile implements DbFile {
                 return null;
             }
         }
-
+        appendFileLengthOnDisk(BufferPool.getPageSize());
+        int newPageNum = numPages + 1;
+        HeapPageId pid = HeapPageId.getInstance(getTableId(), newPageNum);
+        Page emptyPage = Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
+        HeapPage emptyHeapPage = (HeapPage) emptyPage;
+        emptyHeapPage.insertTuple(t);
+        emptyPage.markDirty(true, tid);
         // TODO: some code goes here
         return null;
 
@@ -156,6 +160,13 @@ public class HeapFile implements DbFile {
         // TODO: some code goes here
         return null;
         // not necessary for lab1
+    }
+
+    private void appendFileLengthOnDisk(int extendLength) throws IOException, TransactionAbortedException, DbException {
+        FileOutputStream fo = new FileOutputStream(file);
+        byte[] buf = new byte[extendLength];
+        int offset = numPages()*BufferPool.getPageSize();
+        fo.write(buf, offset, extendLength);
     }
 
     // see DbFile.java for javadocs

@@ -5,6 +5,7 @@ import simpledb.common.Database;
 import simpledb.common.DbException;
 import simpledb.transaction.TransactionId;
 
+import javax.xml.crypto.Data;
 import java.io.*;
 import java.util.*;
 
@@ -283,6 +284,8 @@ public class HeapPage implements Page {
                 tuples[i] = t;
                 markSlotUsed(i, true);
                 decreaseNumUnusedSlots();
+                RecordId rid = RecordId.getInstance(pid, i);
+                t.setRecordId(rid);
                 return;
             }
         }
