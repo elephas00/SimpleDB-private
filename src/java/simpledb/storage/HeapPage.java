@@ -4,8 +4,6 @@ import simpledb.common.Catalog;
 import simpledb.common.Database;
 import simpledb.common.DbException;
 import simpledb.transaction.TransactionId;
-
-import javax.xml.crypto.Data;
 import java.io.*;
 import java.util.*;
 
@@ -81,6 +79,11 @@ public class HeapPage implements Page {
     public static HeapPage getInstance(HeapPageId id, byte[] data) throws IOException {
         return new HeapPage(id, data);
     }
+
+    public static HeapPage getEmptyInstance(HeapPageId id) throws IOException{
+        return new HeapPage(id, new byte[BufferPool.getPageSize()]);
+    }
+
     /**
      * Retrieve the number of tuples on this page.
      *
@@ -268,6 +271,7 @@ public class HeapPage implements Page {
                 return;
             }
         }
+        throw new DbException("there is no such tuple");
     }
 
     /**
@@ -297,8 +301,13 @@ public class HeapPage implements Page {
      * that did the dirtying
      */
     public void markDirty(boolean dirty, TransactionId tid) {
-        isDirty = dirty;
-        transactionId = tid;
+        if(dirty){
+            isDirty = dirty;
+            transactionId = tid;
+            return;
+        }
+        isDirty = false;
+        transactionId = null;
     }
 
     /**
