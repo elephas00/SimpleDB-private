@@ -1,6 +1,5 @@
 package simpledb.optimizer;
 
-import simpledb.common.DbException;
 import simpledb.execution.Predicate;
 
 /**
@@ -50,6 +49,10 @@ public class IntHistogram {
         count = 0;
     }
 
+    public static IntHistogram getInstance(int buckets, int min, int max){
+        return new IntHistogram(buckets, min, max);
+    }
+
     private int pos(int val){
         return buckets * (val - min) / (max - min + 1);
     }
@@ -88,25 +91,34 @@ public class IntHistogram {
             return 0d;
         }
         if(Predicate.Op.EQUALS.equals(op) || Predicate.Op.NOT_EQUALS.equals(op)){
-            if(v < min || v > max){
-                return 0d;
+            // calc res, the result of equals operation, then the result of not equals is 1 - res.
+            double res = 0;
+            if(v >= min && v <= max){
+                int pos = pos(v);
+                res = bucketsArray[pos] * 1.0 / count;
             }
-            int pos = pos(v);
-            return bucketsArray[pos] * 1.0 / count;
+            if(Predicate.Op.EQUALS.equals(op)){
+                return res;
+            }
+            return 1.0 - res;
         }
         if(Predicate.Op.GREATER_THAN_OR_EQ.equals(op) || Predicate.Op.GREATER_THAN.equals(op)
             || Predicate.Op.LESS_THAN.equals(op) || Predicate.Op.LESS_THAN_OR_EQ.equals(op)){
-            int pos = pos(v);
-            int sum = 0;
-            for(int i = pos; i < buckets; i++){
-                sum += bucketsArray[i];
+            double res = 1.0d;
+            if(v > min && v <= max){
+                int pos = pos(v);
+                int sum = 0;
+                for(int i = pos; i < buckets; i++){
+                    sum += bucketsArray[i];
+                }
+                res = 1.0 * sum / count;
+            }else if(v > max){
+                res = 0d;
             }
-            double greaterOrEqualThenEstimate = 1.0 * sum / count;
-            if(Predicate.Op.GREATER_THAN_OR_EQ.equals(op) || Predicate.Op.GREATER_THAN.equals(op)){
-                return greaterOrEqualThenEstimate;
-            }else{
-                return 1.0 - greaterOrEqualThenEstimate;
+            if(Predicate.Op.GREATER_THAN.equals(op) || Predicate.Op.GREATER_THAN_OR_EQ.equals(op)){
+                return res;
             }
+            return 1.0 - res;
         }
 
         throw new IllegalStateException("impossible to reach here.");

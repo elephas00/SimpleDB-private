@@ -1,12 +1,12 @@
 package simpledb.optimizer;
 
 import simpledb.common.Database;
+import simpledb.common.DbException;
 import simpledb.common.Type;
 import simpledb.execution.Predicate;
-import simpledb.execution.SeqScan;
 import simpledb.storage.*;
-import simpledb.transaction.Transaction;
-
+import simpledb.transaction.TransactionAbortedException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,6 +21,16 @@ import java.util.concurrent.ConcurrentMap;
 public class TableStats {
 
     private static final ConcurrentMap<String, TableStats> statsMap = new ConcurrentHashMap<>();
+
+    private final int tableId;
+
+    private final int totalTuples;
+
+    private final DbFile dbFile;
+
+    private final Map<Integer, IntHistogram> field2IntHistogram;
+
+    private final int ioCostPerPage;
 
     static final int IOCOSTPERPAGE = 1000;
 
@@ -82,7 +92,90 @@ public class TableStats {
         // You should try to do this reasonably efficiently, but you don't
         // necessarily have to (for example) do everything
         // in a single scan of the table.
-        // TODO: some code goes here
+        tableId = tableid;
+        dbFile = Database.getCatalog().getTable(tableid);
+        this.ioCostPerPage = ioCostPerPage;
+        field2IntHistogram = new HashMap<>();
+        DbFileIterator it = dbFile.iterator(null);
+        try{
+            it.open();
+            if(!it.hasNext()){
+                throw new IllegalStateException("empty table");
+            }
+        }catch (DbException | TransactionAbortedException e){
+            throw new RuntimeException("table stat failed.");
+        }
+        try {
+            totalTuples = calcTotalTuples();
+        } catch (DbException | TransactionAbortedException e) {
+            throw new RuntimeException(e);
+        }
+        if(dbFile instanceof HeapFile){
+            final HeapFile heapFile = (HeapFile) dbFile;
+            final TupleDesc tupleDesc = heapFile.getTupleDesc();
+            final int numFields = tupleDesc.numFields();
+            for(int i = 0; i < numFields ; i++){
+                if(Type.INT_TYPE.equals(tupleDesc.getFieldType(i))){
+                    try {
+                        calcIntHistogram(i);
+                    } catch (TransactionAbortedException | DbException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            return;
+        }
+        throw new RuntimeException("impossible to reach here.");
+    }
+
+    private int calcTotalTuples() throws TransactionAbortedException, DbException {
+        DbFileIterator it = dbFile.iterator(null);
+        it.open();
+        int count = 0;
+        while(it.hasNext()){
+            it.next();
+            count++;
+        }
+        return count;
+    }
+
+    /**
+     * A help function to calculate the histogram of given field.
+     * scan the table twice.
+     * first, scan the table to get min and max of given field.
+     * then, scan the table again to calculate a int histogram.
+     * @param filed     given field of tupledesc in given table.
+     * @throws TransactionAbortedException  might transaction exception.
+     * @throws DbException  the might exception when iterate given table.
+     */
+    private void calcIntHistogram(int filed) throws TransactionAbortedException, DbException {
+        DbFileIterator it = Database.getCatalog().getTable(tableId).iterator(null);
+        it.open();
+        int max = Integer.MIN_VALUE, min = Integer.MAX_VALUE;
+        // first, scan the table to get min and max of given field.
+        while(it.hasNext()){
+            Tuple tup = it.next();
+            Field f = tup.getField(filed);
+            IntField intF = (IntField) f;
+            int value = intF.getValue();
+            if(max < value){
+                max = value;
+            }
+            if(min > value){
+                min = value;
+            }
+        }
+        // then, scan the table again to calculate a int histogram.
+        IntHistogram histogram = IntHistogram.getInstance(NUM_HIST_BINS, min, max);
+        it.rewind();
+        while(it.hasNext()){
+            Tuple tup = it.next();
+            Field f = tup.getField(filed);
+            IntField intF = (IntField) f;
+            int value = intF.getValue();
+            histogram.addValue(value);
+        }
+        field2IntHistogram.put(filed, histogram);
     }
 
     /**
@@ -98,8 +191,11 @@ public class TableStats {
      * @return The estimated cost of scanning the table.
      */
     public double estimateScanCost() {
-        // TODO: some code goes here
-        return 0;
+        if(dbFile instanceof HeapFile){
+            HeapFile heapFile = (HeapFile) dbFile;
+            return heapFile.numPages() * ioCostPerPage;
+        }
+        throw new IllegalStateException("impossible to reach here.");
     }
 
     /**
@@ -111,8 +207,7 @@ public class TableStats {
      *         selectivityFactor
      */
     public int estimateTableCardinality(double selectivityFactor) {
-        // TODO: some code goes here
-        return 0;
+        return (int) selectivityFactor * totalTuples;
     }
 
     /**
@@ -125,8 +220,8 @@ public class TableStats {
      *              expected selectivity. You may estimate this value from the histograms.
      */
     public double avgSelectivity(int field, Predicate.Op op) {
-        // TODO: some code goes here
-        return 1.0;
+        IntHistogram histogram = field2IntHistogram.get(field);
+        return histogram.avgSelectivity();
     }
 
     /**
@@ -140,16 +235,19 @@ public class TableStats {
      *         predicate
      */
     public double estimateSelectivity(int field, Predicate.Op op, Field constant) {
-        // TODO: some code goes here
-        return 1.0;
+        IntHistogram histogram = field2IntHistogram.get(field);
+        if(constant instanceof IntField){
+            int value = ((IntField) constant).getValue();
+            return histogram.estimateSelectivity(op, value);
+        }
+        throw new IllegalStateException("impossible to reach here.");
     }
 
     /**
      * return the total number of tuples in this table
      */
     public int totalTuples() {
-        // TODO: some code goes here
-        return 0;
+        return totalTuples;
     }
 
 }
