@@ -1,5 +1,6 @@
 package simpledb.optimizer;
 
+import simpledb.common.DbException;
 import simpledb.execution.Predicate;
 
 /**
@@ -7,6 +8,24 @@ import simpledb.execution.Predicate;
  */
 public class IntHistogram {
 
+    /**
+     * buckets The number of buckets to split the input value into.
+     */
+    private final int buckets;
+
+    /**
+     * The minimum integer value
+     */
+    private final int min;
+
+    /**
+     * The maximum integer value
+     */
+    private final int max;
+
+    private final int[] bucketsArray;
+
+    private int count;
     /**
      * Create a new IntHistogram.
      * <p>
@@ -24,7 +43,15 @@ public class IntHistogram {
      * @param max     The maximum integer value that will ever be passed to this class for histogramming
      */
     public IntHistogram(int buckets, int min, int max) {
-        // TODO: some code goes here
+        this.buckets = buckets;
+        this.max = max;
+        this.min = min;
+        bucketsArray = new int[buckets];
+        count = 0;
+    }
+
+    private int pos(int val){
+        return buckets * (val - min) / (max - min + 1);
     }
 
     /**
@@ -33,7 +60,17 @@ public class IntHistogram {
      * @param v Value to add to the histogram
      */
     public void addValue(int v) {
-        // TODO: some code goes here
+        count++;
+        if(v <= min){
+            bucketsArray[0]++;
+            return;
+        }
+        if(v >= max){
+            bucketsArray[buckets - 1]++;
+            return;
+        }
+        int pos = pos(v);
+        bucketsArray[pos]++;
     }
 
     /**
@@ -47,9 +84,33 @@ public class IntHistogram {
      * @return Predicted selectivity of this particular operator and value
      */
     public double estimateSelectivity(Predicate.Op op, int v) {
+        if(count == 0){
+            return 0d;
+        }
+        if(Predicate.Op.EQUALS.equals(op) || Predicate.Op.NOT_EQUALS.equals(op)){
+            if(v < min || v > max){
+                return 0d;
+            }
+            int pos = pos(v);
+            return bucketsArray[pos] * 1.0 / count;
+        }
+        if(Predicate.Op.GREATER_THAN_OR_EQ.equals(op) || Predicate.Op.GREATER_THAN.equals(op)
+            || Predicate.Op.LESS_THAN.equals(op) || Predicate.Op.LESS_THAN_OR_EQ.equals(op)){
+            int pos = pos(v);
+            int sum = 0;
+            for(int i = pos; i < buckets; i++){
+                sum += bucketsArray[i];
+            }
+            double greaterOrEqualThenEstimate = 1.0 * sum / count;
+            if(Predicate.Op.GREATER_THAN_OR_EQ.equals(op) || Predicate.Op.GREATER_THAN.equals(op)){
+                return greaterOrEqualThenEstimate;
+            }else{
+                return 1.0 - greaterOrEqualThenEstimate;
+            }
+        }
 
-        // TODO: some code goes here
-        return -1.0;
+        throw new IllegalStateException("impossible to reach here.");
+
     }
 
     /**
