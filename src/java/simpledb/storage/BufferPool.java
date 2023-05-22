@@ -89,7 +89,6 @@ public class BufferPool {
                 return page;
             }
         }
-        System.out.println(pageList.size() + ", "+ pageNum);
         if(pageList.size() >= pageNum){
             evictPage();
         }
