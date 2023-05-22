@@ -105,7 +105,11 @@ public class JoinOptimizer {
             // HINT: You may need to use the variable "j" if you implemented
             // a join algorithm that's more complicated than a basic
             // nested-loops join.
-            return -1.0;
+            // TODO: more efficient calculate method.
+            double scanCost = cost1;
+            double ioCost = card1 * cost2;
+            double cpuCost = card1 * card2;
+            return scanCost + ioCost + cpuCost;
         }
     }
 
