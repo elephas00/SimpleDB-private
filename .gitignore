@@ -5,3 +5,5 @@
 .project
 log
 /bin/*
+/dist/
+*.dat
