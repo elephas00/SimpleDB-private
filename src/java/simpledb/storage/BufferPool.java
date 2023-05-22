@@ -1,16 +1,16 @@
 package simpledb.storage;
 
-import simpledb.common.Database;
-import simpledb.common.DbException;
-import simpledb.common.DeadlockException;
-import simpledb.common.Permissions;
+import simpledb.common.*;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
 
+import javax.xml.crypto.Data;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+
+import static simpledb.common.Database.getCatalog;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -31,6 +31,10 @@ public class BufferPool {
 
     private static int pageSize = DEFAULT_PAGE_SIZE;
 
+    private List<Page> pageList;
+
+    private int pageNum;
+
     /**
      * Default number of pages passed to the constructor. This is used by
      * other classes. BufferPool should use the numPages argument to the
@@ -44,7 +48,8 @@ public class BufferPool {
      * @param numPages maximum number of pages in this buffer pool.
      */
     public BufferPool(int numPages) {
-        // TODO: some code goes here
+        pageNum = numPages;
+        pageList = new LinkedList<>();
     }
 
     public static int getPageSize() {
@@ -66,7 +71,7 @@ public class BufferPool {
      * Will acquire a lock and may block if that lock is held by another
      * transaction.
      * <p>
-     * The retrieved page should be looked up in the buffer pool.  If it
+     * The retrieved page should be locked up in the buffer pool.  If it
      * is present, it should be returned.  If it is not present, it should
      * be added to the buffer pool and returned.  If there is insufficient
      * space in the buffer pool, a page should be evicted and the new page
@@ -78,8 +83,19 @@ public class BufferPool {
      */
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
             throws TransactionAbortedException, DbException {
-        // TODO: some code goes here
-        return null;
+        // traversal the page list to find page.
+        for(Page page : pageList){
+            if(page != null && pid.equals(page.getId())){
+                return page;
+            }
+        }
+        System.out.println(pageList.size() + ", "+ pageNum);
+        if(pageList.size() >= pageNum){
+            evictPage();
+        }
+        Page loadPage = Database.getCatalog().getTable(pid.getTableId()).readPage(pid);
+        pageList.add(loadPage);
+        return loadPage;
     }
 
     /**
@@ -188,8 +204,15 @@ public class BufferPool {
      * are removed from the cache so they can be reused safely
      */
     public synchronized void removePage(PageId pid) {
-        // TODO: some code goes here
-        // not necessary for lab1
+        Page page = null;
+        try {
+            page = getPage(null, pid, null);
+        } catch (TransactionAbortedException e) {
+            throw new RuntimeException(e);
+        } catch (DbException e) {
+            throw new RuntimeException(e);
+        }
+        pageList.remove(page);
     }
 
     /**
@@ -198,8 +221,18 @@ public class BufferPool {
      * @param pid an ID indicating the page to flush
      */
     private synchronized void flushPage(PageId pid) throws IOException {
-        // TODO: some code goes here
-        // not necessary for lab1
+        int tableId = pid.getTableId();
+        DbFile dbFile = getCatalog().getTable(tableId);
+        Page page = null;
+        try {
+            page = getPage(null, pid, Permissions.READ_WRITE);
+        } catch (TransactionAbortedException e) {
+            throw new RuntimeException(e);
+        } catch (DbException e) {
+            throw new RuntimeException(e);
+        }
+        dbFile.writePage(page);
+
     }
 
     /**
@@ -215,8 +248,14 @@ public class BufferPool {
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
     private synchronized void evictPage() throws DbException {
-        // TODO: some code goes here
-        // not necessary for lab1
+        // FIFO strategy.
+        Page evictPage = pageList.get(0);
+        try{
+            flushPage(evictPage.getId());
+            removePage(evictPage.getId());
+        }catch (IOException e){
+            throw new DbException("evict page failed " + e.getMessage());
+        }
     }
 
 }

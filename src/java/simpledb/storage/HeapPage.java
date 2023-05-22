@@ -3,12 +3,9 @@ package simpledb.storage;
 import simpledb.common.Catalog;
 import simpledb.common.Database;
 import simpledb.common.DbException;
-import simpledb.common.Debug;
 import simpledb.transaction.TransactionId;
-
 import java.io.*;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 /**
  * Each instance of HeapPage stores data for one page of HeapFiles and
@@ -19,12 +16,17 @@ import java.util.NoSuchElementException;
  */
 public class HeapPage implements Page {
 
+    private boolean isDirty;
+
+    private TransactionId transactionId;
+
+    private int unusedSlots;
+
     final HeapPageId pid;
     final TupleDesc td;
     final byte[] header;
     final Tuple[] tuples;
     final int numSlots;
-
     byte[] oldData;
     private final Byte oldDataLock = (byte) 0;
 
@@ -65,8 +67,21 @@ public class HeapPage implements Page {
             e.printStackTrace();
         }
         dis.close();
-
+        unusedSlots = 0;
+        for(Tuple tup : tuples){
+            if(tup == null){
+                increaseNumUnusedSlots();
+            }
+        }
         setBeforeImage();
+    }
+
+    public static HeapPage getInstance(HeapPageId id, byte[] data) throws IOException {
+        return new HeapPage(id, data);
+    }
+
+    public static HeapPage getEmptyInstance(HeapPageId id) throws IOException{
+        return new HeapPage(id, new byte[BufferPool.getPageSize()]);
     }
 
     /**
@@ -75,9 +90,7 @@ public class HeapPage implements Page {
      * @return the number of tuples on this page
      */
     private int getNumTuples() {
-        // TODO: some code goes here
-        return 0;
-
+        return (BufferPool.getPageSize()*8) / (1 + td.getSize()*8);
     }
 
     /**
@@ -86,10 +99,7 @@ public class HeapPage implements Page {
      * @return the number of bytes in the header of a page in a HeapFile with each tuple occupying tupleSize bytes
      */
     private int getHeaderSize() {
-
-        // TODO: some code goes here
-        return 0;
-
+        return (int) Math.ceil(1.0 * numSlots / 8);
     }
 
     /**
@@ -121,8 +131,7 @@ public class HeapPage implements Page {
      * @return the PageId associated with this page.
      */
     public HeapPageId getId() {
-        // TODO: some code goes here
-        throw new UnsupportedOperationException("implement this");
+        return pid;
     }
 
     /**
@@ -254,8 +263,15 @@ public class HeapPage implements Page {
      *                     already empty.
      */
     public void deleteTuple(Tuple t) throws DbException {
-        // TODO: some code goes here
-        // not necessary for lab1
+        for(int i = 0; i < getNumTuples(); i++){
+            if(isSlotUsed(i) && t.equals(tuples[i])){
+                tuples[i] = null;
+                markSlotUsed(i, false);
+                increaseNumUnusedSlots();
+                return;
+            }
+        }
+        throw new DbException("there is no such tuple");
     }
 
     /**
@@ -267,8 +283,17 @@ public class HeapPage implements Page {
      *                     is mismatch.
      */
     public void insertTuple(Tuple t) throws DbException {
-        // TODO: some code goes here
-        // not necessary for lab1
+        for(int i = 0; i < numSlots; i++){
+            if(!isSlotUsed(i)){
+                tuples[i] = t;
+                markSlotUsed(i, true);
+                decreaseNumUnusedSlots();
+                RecordId rid = RecordId.getInstance(pid, i);
+                t.setRecordId(rid);
+                return;
+            }
+        }
+        throw new DbException("page is full");
     }
 
     /**
@@ -276,41 +301,61 @@ public class HeapPage implements Page {
      * that did the dirtying
      */
     public void markDirty(boolean dirty, TransactionId tid) {
-        // TODO: some code goes here
-        // not necessary for lab1
+        if(dirty){
+            isDirty = dirty;
+            transactionId = tid;
+            return;
+        }
+        isDirty = false;
+        transactionId = null;
     }
 
     /**
      * Returns the tid of the transaction that last dirtied this page, or null if the page is not dirty
      */
     public TransactionId isDirty() {
-        // TODO: some code goes here
-        // Not necessary for lab1
-        return null;      
+        return transactionId;
     }
 
     /**
      * Returns the number of unused (i.e., empty) slots on this page.
      */
-    public int getNumUnusedSlots() {
-        // TODO: some code goes here
-        return 0;
+    public synchronized int getNumUnusedSlots() {
+        return unusedSlots;
+    }
+
+    private synchronized void increaseNumUnusedSlots(){
+        unusedSlots++;
+    }
+
+    private synchronized void decreaseNumUnusedSlots(){
+        unusedSlots--;
     }
 
     /**
      * Returns true if associated slot on this page is filled.
      */
     public boolean isSlotUsed(int i) {
-        // TODO: some code goes here
-        return false;
+        int bytePos = i >> 3;
+        int bitPos = 0x1 << (i % 8);
+        return (header[bytePos] & bitPos) != 0;
     }
 
     /**
      * Abstraction to fill or clear a slot on this page.
      */
     private void markSlotUsed(int i, boolean value) {
-        // TODO: some code goes here
-        // not necessary for lab1
+        int bytePos = i >> 3;
+        int bitPos = 0x1 << (i % 8);
+        boolean origin = (header[bytePos] & bitPos) != 0;
+        if(origin == value){
+            return;
+        }
+        if(!origin){
+            header[bytePos] |= bitPos;
+            return;
+        }
+        header[bytePos] ^= bitPos;
     }
 
     /**
@@ -318,8 +363,13 @@ public class HeapPage implements Page {
      *         (note that this iterator shouldn't return tuples in empty slots!)
      */
     public Iterator<Tuple> iterator() {
-        // TODO: some code goes here
-        return null;
+        List<Tuple> tupleList = new LinkedList<>();
+        for(Tuple tp : tuples){
+            if(tp != null){
+                tupleList.add(tp);
+            }
+        }
+        return tupleList.iterator();
     }
 
 }

@@ -19,6 +19,9 @@ public class IntField implements Field {
         return value;
     }
 
+    public static IntField getInstance(int value){
+        return new IntField(value);
+    }
     /**
      * Constructor.
      *

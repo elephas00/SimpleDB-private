@@ -3,6 +3,7 @@ package simpledb.execution;
 import simpledb.storage.Field;
 import simpledb.storage.Tuple;
 
+import java.io.Serial;
 import java.io.Serializable;
 
 /**
@@ -10,7 +11,14 @@ import java.io.Serializable;
  */
 public class Predicate implements Serializable {
 
+    @Serial
     private static final long serialVersionUID = 1L;
+
+    private final int field;
+
+    private final Op operator;
+
+    private final Field operand;
 
     /**
      * Constants used for return codes in Field.compare
@@ -56,31 +64,30 @@ public class Predicate implements Serializable {
      * @param operand field value to compare passed in tuples to
      */
     public Predicate(int field, Op op, Field operand) {
-        // TODO: some code goes here
+        this.field = field;
+        this.operator = op;
+        this.operand = operand;
     }
 
     /**
      * @return the field number
      */
     public int getField() {
-        // TODO: some code goes here
-        return -1;
+        return field;
     }
 
     /**
      * @return the operator
      */
     public Op getOp() {
-        // TODO: some code goes here
-        return null;
+        return operator;
     }
 
     /**
      * @return the operand
      */
     public Field getOperand() {
-        // TODO: some code goes here
-        return null;
+        return operand;
     }
 
     /**
@@ -93,8 +100,8 @@ public class Predicate implements Serializable {
      * @return true if the comparison is true, false otherwise.
      */
     public boolean filter(Tuple t) {
-        // TODO: some code goes here
-        return false;
+        // just like table_name.column < -5, Operand in the predicate is after the operator.
+        return t.getField(field).compare(this.operator, operand);
     }
 
     /**
@@ -102,7 +109,8 @@ public class Predicate implements Serializable {
      * operand_string"
      */
     public String toString() {
-        // TODO: some code goes here
-        return "";
+        return  "f = " + field +
+                " op = " + operator.toString() +
+                " operand = " + operand.toString();
     }
 }

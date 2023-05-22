@@ -1,8 +1,10 @@
 package simpledb.storage;
 
+import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * Tuple maintains information about the contents of a tuple. Tuples have a
@@ -11,8 +13,13 @@ import java.util.Iterator;
  */
 public class Tuple implements Serializable {
 
+    @Serial
     private static final long serialVersionUID = 1L;
+    private TupleDesc tupleDesc;
 
+    private RecordId recordId;
+
+    private Field[] fieldArray;
     /**
      * Create a new tuple with the specified schema (type).
      *
@@ -20,15 +27,19 @@ public class Tuple implements Serializable {
      *           instance with at least one field.
      */
     public Tuple(TupleDesc td) {
-        // TODO: some code goes here
+        tupleDesc = td;
+        fieldArray = new Field[td.numFields()];
+    }
+
+    public static Tuple getInstance(TupleDesc td){
+        return new Tuple(td);
     }
 
     /**
      * @return The TupleDesc representing the schema of this tuple.
      */
     public TupleDesc getTupleDesc() {
-        // TODO: some code goes here
-        return null;
+        return tupleDesc;
     }
 
     /**
@@ -36,8 +47,7 @@ public class Tuple implements Serializable {
      *         be null.
      */
     public RecordId getRecordId() {
-        // TODO: some code goes here
-        return null;
+        return recordId;
     }
 
     /**
@@ -46,7 +56,7 @@ public class Tuple implements Serializable {
      * @param rid the new RecordId for this tuple.
      */
     public void setRecordId(RecordId rid) {
-        // TODO: some code goes here
+        recordId = rid;
     }
 
     /**
@@ -56,7 +66,7 @@ public class Tuple implements Serializable {
      * @param f new value for the field.
      */
     public void setField(int i, Field f) {
-        // TODO: some code goes here
+        fieldArray[i] = f;
     }
 
     /**
@@ -64,8 +74,7 @@ public class Tuple implements Serializable {
      * @return the value of the ith field, or null if it has not been set.
      */
     public Field getField(int i) {
-        // TODO: some code goes here
-        return null;
+        return fieldArray[i];
     }
 
     /**
@@ -77,22 +86,31 @@ public class Tuple implements Serializable {
      * where \t is any whitespace (except a newline)
      */
     public String toString() {
-        // TODO: some code goes here
-        throw new UnsupportedOperationException("Implement this");
+        StringBuilder builder = new StringBuilder();
+        builder.append(getField(0));
+        for(int i = 1; i < tupleDesc.numFields(); i++){
+            builder.append("\t")
+                    .append(getField(i));
+        }
+        return builder.toString();
     }
 
     /**
      * @return An iterator which iterates over all the fields of this tuple
      */
     public Iterator<Field> fields() {
-        // TODO: some code goes here
-        return null;
+        List<Field> listField = new ArrayList<>(tupleDesc.numFields());
+        for(int i = 0; i < tupleDesc.numFields(); i++){
+            listField.set(i, fieldArray[i]);
+        }
+        return listField.iterator();
     }
 
     /**
      * reset the TupleDesc of this tuple (only affecting the TupleDesc)
      */
     public void resetTupleDesc(TupleDesc td) {
-        // TODO: some code goes here
+        tupleDesc = td;
+        fieldArray = new Field[td.numFields()];
     }
 }
