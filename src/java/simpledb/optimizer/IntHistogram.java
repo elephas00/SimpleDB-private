@@ -54,7 +54,8 @@ public class IntHistogram {
     }
 
     private int pos(int val){
-        return buckets * (val - min) / (max - min + 1);
+        double pos = 1.0 * buckets * (val - min) / (max - min + 1);
+        return (int) pos;
     }
 
     /**

@@ -147,9 +147,21 @@ public class JoinOptimizer {
                                                    String field2PureName, int card1, int card2, boolean t1pkey,
                                                    boolean t2pkey, Map<String, TableStats> stats,
                                                    Map<String, Integer> tableAliasToId) {
-        int card = 1;
-        // TODO: some code goes here
-        return card <= 0 ? 1 : card;
+        if(Predicate.Op.EQUALS.equals(joinOp)){
+            int card = 0;
+            if(t1pkey && t2pkey){
+                card = Math.min(card1, card2);
+            }else if(t1pkey){
+                card = card2;
+            }else if(t2pkey){
+                card = card1;
+            }else{
+                card = Math.max(card1, card2);
+            }
+            return card;
+        }else{
+            return (int) (0.3 * card1 * card2);
+        }
     }
 
     /**
@@ -202,10 +214,30 @@ public class JoinOptimizer {
             Map<String, TableStats> stats,
             Map<String, Double> filterSelectivities, boolean explain)
             throws ParsingException {
-        // Not necessary for labs 1 and 2.
+        PlanCache pc = PlanCache.getInstance();
+        int joinSize = joins.size();
+        for(int i = 1; i <= joinSize; i++){
+            Set<Set<LogicalJoinNode>> subsetsWithSizeI = enumerateSubsets(joins, i);
+            for(Set<LogicalJoinNode> subPlan : subsetsWithSizeI){
+                Double bestCostSoFar = Double.MAX_VALUE;
+                CostCard bestPlan = null;
+                for(LogicalJoinNode nodeToRemove : subPlan){
+                    CostCard costCard = computeCostAndCardOfSubplan(stats, filterSelectivities, nodeToRemove, subPlan, bestCostSoFar, pc);
+                    if(costCard == null){
+                        continue;
+                    }
+                    if(costCard.cost < bestCostSoFar){
+                        bestPlan = costCard;
+                        bestCostSoFar = costCard.cost;
+                    }
+                }
+                if(bestPlan != null){
+                    pc.addPlan(subPlan, bestCostSoFar, bestPlan.card, bestPlan.plan);
+                }
 
-        // TODO: some code goes here
-        return joins;
+            }
+        }
+        return pc.getOrder(new HashSet<>(joins));
     }
 
     // ===================== Private Methods =================================
@@ -237,7 +269,8 @@ public class JoinOptimizer {
     private CostCard computeCostAndCardOfSubplan(
             Map<String, TableStats> stats,
             Map<String, Double> filterSelectivities,
-            LogicalJoinNode joinToRemove, Set<LogicalJoinNode> joinSet,
+            LogicalJoinNode joinToRemove,
+            Set<LogicalJoinNode> joinSet,
             double bestCostSoFar, PlanCache pc) throws ParsingException {
 
         LogicalJoinNode j = joinToRemove;
