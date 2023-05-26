@@ -103,23 +103,42 @@ public class IntHistogram {
             }
             return 1.0 - res;
         }
-        if(Predicate.Op.GREATER_THAN_OR_EQ.equals(op) || Predicate.Op.GREATER_THAN.equals(op)
-            || Predicate.Op.LESS_THAN.equals(op) || Predicate.Op.LESS_THAN_OR_EQ.equals(op)){
-            double res = 1.0d;
-            if(v > min && v <= max){
-                int pos = pos(v);
-                int sum = 0;
-                for(int i = pos; i < buckets; i++){
-                    sum += bucketsArray[i];
-                }
-                res = 1.0 * sum / count;
-            }else if(v > max){
-                res = 0d;
+        boolean greater = Predicate.Op.GREATER_THAN_OR_EQ.equals(op) || Predicate.Op.GREATER_THAN.equals(op);
+        boolean less = Predicate.Op.LESS_THAN.equals(op) || Predicate.Op.LESS_THAN_OR_EQ.equals(op);
+        if(v > max){
+            if(greater){
+                return 0d;
             }
-            if(Predicate.Op.GREATER_THAN.equals(op) || Predicate.Op.GREATER_THAN_OR_EQ.equals(op)){
-                return res;
+            if(less){
+                return 1.0d;
             }
-            return 1.0 - res;
+        }
+        if(v < min){
+            if(less){
+                return 0d;
+            }
+            if(greater){
+                return 1d;
+            }
+        }
+        int pos = pos(v);
+        int sum = 0;
+        for(int i = pos + 1; i < buckets; i++){
+            sum += bucketsArray[i];
+        }
+        double greaterOrEqThan = 1.0 * (sum + bucketsArray[pos]) / count;
+        double greaterThan = 1.0 * sum / count;
+        if(Predicate.Op.GREATER_THAN_OR_EQ.equals(op)){
+            return greaterOrEqThan;
+        }
+        if(Predicate.Op.GREATER_THAN.equals(op)){
+            return greaterThan;
+        }
+        if(Predicate.Op.LESS_THAN.equals(op)){
+            return 1.0 - greaterOrEqThan;
+        }
+        if(Predicate.Op.LESS_THAN_OR_EQ.equals(op)){
+            return 1.0 - greaterThan;
         }
 
         throw new IllegalStateException("impossible to reach here.");
