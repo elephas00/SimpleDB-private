@@ -27,14 +27,11 @@ public class HeapFile implements DbFile {
      */
 
     private final File file;
-
-    private int numPages;
     private final TupleDesc tupleDesc;
 
     public HeapFile(File f, TupleDesc td) {
         file = f;
         tupleDesc = td;
-        numPages = (int) Math.ceil(1.0 * file.length() / BufferPool.getPageSize());
     }
 
     /**
@@ -103,9 +100,6 @@ public class HeapFile implements DbFile {
         raf.skipBytes(offset);
         raf.write(buf);
         raf.close();
-        if(pageNo + 1 >= numPages){
-            numPages = pageNo + 1;
-        }
     }
 
     /**
@@ -196,89 +190,85 @@ public class HeapFile implements DbFile {
     public DbFileIterator iterator(TransactionId tid) {
         return DbHeapFileIterator.getInstance(this, tid);
     }
-
     public static class DbHeapFileIterator extends AbstractDbFileIterator{
         private boolean isOpen;
-        private HeapFile file;
-        private TransactionId tid;
-        private int pageNumber;
-
-        private Iterator<Tuple> tupleIterator;
-        private DbHeapFileIterator(HeapFile heapFile, TransactionId tid){
+        private HeapFile dbFile;
+        private final BufferPool bufferPool;
+        private HeapPage curPage;
+        private int curPageNo;
+        public Iterator<Tuple> iteratorInCurrentPage;
+        private TransactionId transactionId;
+        private DbHeapFileIterator(HeapFile heapfile, TransactionId tid){
+            dbFile = heapfile;
             isOpen = false;
-            file = heapFile;
-            this.tid = tid;
-            close();
+            bufferPool = Database.getBufferPool();
+            transactionId = tid;
         }
-        public static DbHeapFileIterator getInstance(HeapFile heapFile, TransactionId tid){
-            return new DbHeapFileIterator(heapFile, tid);
+
+        public static DbHeapFileIterator getInstance(HeapFile heapFile, TransactionId transactionId){
+            return new DbHeapFileIterator(heapFile, transactionId);
+        }
+
+
+        private void readCurrentPageFromBufferPoll(){
+            HeapPageId pageId = HeapPageId.getInstance(dbFile.getTableId(), curPageNo);
+            try {
+                curPage = (HeapPage) bufferPool.getPage(transactionId, pageId, Permissions.READ_ONLY);
+            } catch (TransactionAbortedException | DbException | ClassCastException e) {
+                throw new RuntimeException("read next page failed.", e);
+            }
+            iteratorInCurrentPage = curPage.iterator();
         }
 
         @Override
-        public boolean hasNext() throws TransactionAbortedException, DbException {
+        public boolean hasNext(){
             if(!isOpen){
                 return false;
             }
-            if(file.numPages() == 0){
+            if(iteratorInCurrentPage.hasNext()){
+                return true;
+            }
+            if(curPageNo == dbFile.numPages() - 1){
                 return false;
             }
-            if(pageNumber == file.numPages()){
-                return false;
-            }
-            if(tupleIterator == null){
-                pageNumber = -1;
-                readNextPage();
-                return this.hasNext();
-            }
-            if(!tupleIterator.hasNext()){
-                if(hasNextPage()){
-                    readNextPage();
-                    return this.hasNext();
-                }
-                return false;
-            }
-            return true;
+            curPageNo++;
+            readCurrentPageFromBufferPoll();
+            return hasNext();
         }
 
-        private void readNextPage() throws TransactionAbortedException, DbException {
-            pageNumber++;
-            HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, HeapPageId.getInstance(file.getId(), pageNumber), Permissions.READ_ONLY);
-            tupleIterator = page.iterator();
+        @Override
+        protected Tuple readNext() throws DbException, TransactionAbortedException {
+            checkIteratorOpen();
+            if(hasNext()){
+                return iteratorInCurrentPage.next();
+            }
+            return null;
         }
-        private boolean hasNextPage(){
-            int numpages = file.numPages();
-            return pageNumber + 1 < numpages;
+
+        @Override
+        public void open() throws DbException, TransactionAbortedException {
+            curPageNo = 0;
+            isOpen = true;
+            readCurrentPageFromBufferPoll();
+        }
+
+        @Override
+        public void rewind() throws DbException, TransactionAbortedException {
+            checkIteratorOpen();
+            close();
+            open();
+        }
+
+        @Override
+        public void close(){
+            super.close();
+            isOpen = false;
         }
 
         private void checkIteratorOpen() throws NoSuchElementException {
             if(!isOpen){
                 throw new NoSuchElementException("iterator was closed.");
             }
-        }
-        @Override
-        protected Tuple readNext() throws DbException, TransactionAbortedException {
-            checkIteratorOpen();
-            if(hasNext()){
-                return tupleIterator.next();
-            }
-            throw new NoSuchElementException();
-        }
-
-        @Override
-        public void open() throws DbException, TransactionAbortedException {
-            isOpen = true;
-            tupleIterator = null;
-        }
-
-        @Override
-        public void rewind() throws DbException, TransactionAbortedException {
-            checkIteratorOpen();
-            tupleIterator = null;
-        }
-
-        @Override
-        public void close(){
-            isOpen = false;
         }
     }
 }
