@@ -1,6 +1,5 @@
 package simpledb.storage;
 
-import java.io.File;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;

@@ -3,12 +3,8 @@ package simpledb.storage;
 import simpledb.common.*;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
-
-import javax.xml.crypto.Data;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 import static simpledb.common.Database.getCatalog;
 
