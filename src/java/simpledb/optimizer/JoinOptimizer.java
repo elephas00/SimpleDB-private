@@ -195,6 +195,38 @@ public class JoinOptimizer {
     }
 
     /**
+     * return a list of subsets that index i have subsets with size i + 1
+     * @param v
+     * @return
+     * @param <T>
+     */
+    private <T> List<Set<Set<T>>> enumerateSubSetsAtOnce(List<T> v){
+        int size = v.size();
+        List<Set<Set<T>>> list = new ArrayList<>(size);
+        for(int i = 0; i < size; i++){
+            list.add(new HashSet<>());
+        }
+        Stack<T> stack = new Stack<>();
+        enumerateSubSetsAtOnceDfs(v, list, stack, 0, size);
+        return list;
+    }
+
+    private <T> void enumerateSubSetsAtOnceDfs(List<T> v, List<Set<Set<T>>> res, Stack<T> stack, int cur, int size){
+        if(cur == size){
+            return;
+        }
+        for(int i = cur; i < size; i++){
+            T elem = v.get(i);
+            stack.push(elem);
+            int stackSize = stack.size();
+            res.get(stackSize - 1).add(new HashSet<>(stack));
+            enumerateSubSetsAtOnceDfs(v, res, stack, i + 1, size);
+            stack.pop();
+        }
+    }
+
+
+    /**
      * Compute a logical, reasonably efficient join on the specified tables. See
      * the Lab 3 description for hints on how this should be implemented.
      *
@@ -216,8 +248,9 @@ public class JoinOptimizer {
             throws ParsingException {
         PlanCache pc = PlanCache.getInstance();
         int joinSize = joins.size();
+        List<Set<Set<LogicalJoinNode>>> subsetList = enumerateSubSetsAtOnce(joins);
         for(int i = 1; i <= joinSize; i++){
-            Set<Set<LogicalJoinNode>> subsetsWithSizeI = enumerateSubsets(joins, i);
+            Set<Set<LogicalJoinNode>> subsetsWithSizeI = subsetList.get(i - 1);
             for(Set<LogicalJoinNode> subPlan : subsetsWithSizeI){
                 Double bestCostSoFar = Double.MAX_VALUE;
                 CostCard bestPlan = null;
@@ -237,7 +270,12 @@ public class JoinOptimizer {
 
             }
         }
-        return pc.getOrder(new HashSet<>(joins));
+        List<LogicalJoinNode> res = pc.getOrder(new HashSet<>(joins));
+        if(explain){
+            printJoins(res, pc, stats, filterSelectivities);
+        }
+        return res;
+
     }
 
     // ===================== Private Methods =================================
