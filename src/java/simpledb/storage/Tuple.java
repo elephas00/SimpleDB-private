@@ -113,4 +113,31 @@ public class Tuple implements Serializable {
         tupleDesc = td;
         fieldArray = new Field[td.numFields()];
     }
+
+    @Override
+    public boolean equals(Object o){
+        if(this == o){
+            return true;
+        }
+        if(o instanceof Tuple){
+            Tuple tupObj = (Tuple) o;
+            if(!this.tupleDesc.equals(tupObj.tupleDesc)){
+                return false;
+            }
+            int n = tupleDesc.numFields();
+            for(int i = 0; i < n; i++){
+                if(this.fieldArray[i] == null && tupObj.fieldArray[i] == null){
+                    continue;
+                }
+                if(this.fieldArray[i] == null || tupObj.fieldArray[i] == null){
+                    return false;
+                }
+                if(!this.fieldArray[i].equals(tupObj.fieldArray[i])){
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
 }

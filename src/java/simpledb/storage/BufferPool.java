@@ -3,12 +3,8 @@ package simpledb.storage;
 import simpledb.common.*;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
-
-import javax.xml.crypto.Data;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 import static simpledb.common.Database.getCatalog;
 
@@ -159,8 +155,9 @@ public class BufferPool {
      */
     public void insertTuple(TransactionId tid, int tableId, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
-        // TODO: some code goes here
-        // not necessary for lab1
+        // FIXME
+        DbFile dbFile = getCatalog().getDatabaseFile(tableId);
+        dbFile.insertTuple(tid, t);
     }
 
     /**
@@ -178,8 +175,11 @@ public class BufferPool {
      */
     public void deleteTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
-        // TODO: some code goes here
-        // not necessary for lab1
+        // FIXME
+        RecordId recordId = t.getRecordId();
+        int tableId = recordId.getPageId().getTableId();
+        DbFile dbFile = getCatalog().getDatabaseFile(tableId);
+        dbFile.deleteTuple(tid, t);
     }
 
     /**
