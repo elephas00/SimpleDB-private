@@ -250,7 +250,9 @@ public class BufferPool {
         // FIFO strategy.
         Page evictPage = pageList.get(0);
         try{
-            flushPage(evictPage.getId());
+            if(evictPage.isDirty() != null){
+                flushPage(evictPage.getId());
+            }
             removePage(evictPage.getId());
         }catch (IOException e){
             throw new DbException("evict page failed " + e.getMessage());
