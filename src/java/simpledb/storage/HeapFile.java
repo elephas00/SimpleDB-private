@@ -32,11 +32,13 @@ public class HeapFile implements DbFile {
 
     private final File file;
 
+    private int numPages;
     private final TupleDesc tupleDesc;
 
     public HeapFile(File f, TupleDesc td) {
         file = f;
         tupleDesc = td;
+        numPages = (int) Math.ceil(1.0 * file.length() / BufferPool.getPageSize());
     }
 
     /**
@@ -116,7 +118,7 @@ public class HeapFile implements DbFile {
      * Returns the number of pages in this HeapFile.
      */
     public int numPages() {
-        return (int) Math.ceil(1.0 * file.length() / BufferPool.getPageSize());
+        return numPages;
     }
 
     // see DbFile.java for javadocs
