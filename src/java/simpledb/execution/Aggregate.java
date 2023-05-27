@@ -51,7 +51,12 @@ public class Aggregate extends Operator {
         groupByField = gfield;
         operator = aop;
         tupleDesc = calcTupleDesc();
-        Type groupByFieldType = child.getTupleDesc().getFieldType(groupByField);
+        Type groupByFieldType;
+        if(Aggregator.NO_GROUPING == groupByField){
+            groupByFieldType = null;
+        }else{
+            groupByFieldType = child.getTupleDesc().getFieldType(groupByField);
+        }
         Type aggregateFieldTYpe = child.getTupleDesc().getFieldType(afield);
         if (Type.INT_TYPE.equals(aggregateFieldTYpe)) {
             aggregator = IntegerAggregator.getInstance(aop, gfield, aggregateField, groupByFieldType, this);
