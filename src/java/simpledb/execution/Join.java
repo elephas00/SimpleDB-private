@@ -109,6 +109,28 @@ public class Join extends Operator {
      * @see JoinPredicate#filter
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
+        while(true){
+            Tuple tuple2 = fetchNextCrossProduct();
+            Tuple tuple1 = child1CurrentElement;
+            if(tuple2 == null){
+                return null;
+            }
+            if(getJoinPredicate().filter(tuple1, tuple2)){
+                final Tuple newTuple = Tuple.getInstance(mergedTupleDesc);
+                final int c1NumF = tuple1.getTupleDesc().numFields();
+                final int c2NumF = tuple2.getTupleDesc().numFields();
+                for(int i = 0; i < c1NumF; i++){
+                    newTuple.setField(i, tuple1.getField(i));
+                }
+                for(int i = 0; i < c2NumF; i++){
+                    newTuple.setField(i + c1NumF, tuple2.getField(i));
+                }
+                return newTuple;
+            }
+        }
+    }
+
+    private Tuple fetchNextCrossProduct() throws TransactionAbortedException, DbException {
         if(child1CurrentElement == null){
             child1CurrentElement = child1.next();
         }
@@ -119,17 +141,7 @@ public class Join extends Operator {
             child1CurrentElement = child1.next();
             child2.rewind();
         }
-        final Tuple child2CurrentElement = child2.next();
-        final Tuple newTuple = Tuple.getInstance(mergedTupleDesc);
-        final int c1NumF = child1.getTupleDesc().numFields();
-        final int c2NumF = child2.getTupleDesc().numFields();
-        for(int i = 0; i < c1NumF; i++){
-            newTuple.setField(i, child1CurrentElement.getField(i));
-        }
-        for(int i = 0; i < c2NumF; i++){
-            newTuple.setField(i + c1NumF, child2CurrentElement.getField(i));
-        }
-        return newTuple;
+        return child2.next();
     }
 
     @Override
