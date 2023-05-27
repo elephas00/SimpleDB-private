@@ -157,7 +157,17 @@ public class BufferPool {
             throws DbException, IOException, TransactionAbortedException {
         // FIXME
         DbFile dbFile = getCatalog().getDatabaseFile(tableId);
-        dbFile.insertTuple(tid, t);
+        List<Page> dirtyPages = dbFile.insertTuple(tid, t);
+        for(Page dirtyPage : dirtyPages){
+            if(pageList.contains(dirtyPage)){
+                continue;
+            }
+            if(pageList.size() == pageNum){
+                evictPage();
+            }
+            dbFile.writePage(dirtyPage);
+            pageList.add(dirtyPage);
+        }
     }
 
     /**
@@ -179,7 +189,17 @@ public class BufferPool {
         RecordId recordId = t.getRecordId();
         int tableId = recordId.getPageId().getTableId();
         DbFile dbFile = getCatalog().getDatabaseFile(tableId);
-        dbFile.deleteTuple(tid, t);
+        List<Page> dirtyPages = dbFile.deleteTuple(tid, t);
+        for(Page dirtyPage : dirtyPages){
+            if(pageList.contains(dirtyPage)){
+                continue;
+            }
+            if(pageList.size() == pageNum){
+                evictPage();
+                pageList.add(dirtyPage);
+            }
+        }
+
     }
 
     /**

@@ -112,7 +112,7 @@ public class HeapFile implements DbFile {
      * Returns the number of pages in this HeapFile.
      */
     public int numPages() {
-        return numPages;
+        return (int) file.length() / BufferPool.getPageSize();
     }
 
     // see DbFile.java for javadocs
@@ -120,10 +120,14 @@ public class HeapFile implements DbFile {
             throws DbException, IOException, TransactionAbortedException {
         final int numPages = numPages();
         boolean needNewPage = true;
+        Page dirtyPage = null;
         for(int i = 0; i < numPages; i++){
             HeapPageId pid = HeapPageId.getInstance(getTableId(), i);
-            if(insertTupleToPage(pid, t, tid)){
+            Page page = Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
+            HeapPage heapPage = (HeapPage) page;
+            if(insertTupleToPage(heapPage, t, tid)){
                 needNewPage = false;
+                dirtyPage = heapPage;
                 break;
             }
         }
@@ -131,28 +135,27 @@ public class HeapFile implements DbFile {
             final int newPageNo = numPages;
             HeapPageId pid = HeapPageId.getInstance(getTableId(), newPageNo);
             HeapPage emptyPage = HeapPage.getEmptyInstance(pid);
+            insertTupleToPage(emptyPage, t, tid);
+            dirtyPage = emptyPage;
             writePage(emptyPage);
-            insertTupleToPage(pid, t, tid);
         }
-        // TODO: some code goes here, what will return?
-        return null;
-
+        List<Page> dirtyPages = new LinkedList<>();
+        dirtyPages.add(dirtyPage);
+        return dirtyPages;
     }
 
     /**
      * A help function to insert a tuple to a given page.
      * If the page is full, return false.
      * If the page is not full, insert tuple tup to this page.
-     * @param pid   page id of given page.
+     * @param heapPage   page id of given page.
      * @param tup   given tuple
      * @param tid   given transaction id.
      * @return  true if insertion is success.
      * @throws DbException
      * @throws TransactionAbortedException
      */
-    private boolean insertTupleToPage(PageId pid, Tuple tup, TransactionId tid) throws DbException, TransactionAbortedException {
-        Page page = Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
-        HeapPage heapPage = (HeapPage) page;
+    private boolean insertTupleToPage(HeapPage heapPage, Tuple tup, TransactionId tid) throws DbException, TransactionAbortedException {
         if(heapPage.getNumUnusedSlots() > 0){
             heapPage.insertTuple(tup);
             heapPage.markDirty(true, tid);
@@ -174,21 +177,20 @@ public class HeapFile implements DbFile {
         HeapPage heapPage = (HeapPage) page;
         heapPage.deleteTuple(t);
         heapPage.markDirty(true, tid);
-        // TODO: what will return here?
-        // TODO: some code goes here
-        return null;
-        // not necessary for lab1
+        List<Page> dirtyPages = new LinkedList<>();
+        dirtyPages.add(heapPage);
+        return dirtyPages;
     }
 
-    private void appendFileLengthOnDisk(byte[] buf) throws IOException {
-        FileOutputStream fo = new FileOutputStream(file, true);
-        fo.write(buf);
-    }
-    private void appendFileLengthOnDisk(int extendLength) throws IOException, TransactionAbortedException, DbException {
-        FileOutputStream fo = new FileOutputStream(file, true);
-        byte[] buf = new byte[extendLength];
-        fo.write(buf);
-    }
+//    private void appendFileLengthOnDisk(byte[] buf) throws IOException {
+//        FileOutputStream fo = new FileOutputStream(file, true);
+//        fo.write(buf);
+//    }
+//    private void appendFileLengthOnDisk(int extendLength) throws IOException, TransactionAbortedException, DbException {
+//        FileOutputStream fo = new FileOutputStream(file, true);
+//        byte[] buf = new byte[extendLength];
+//        fo.write(buf);
+//    }
 
     // see DbFile.java for javadocs
     public DbFileIterator iterator(TransactionId tid) {
