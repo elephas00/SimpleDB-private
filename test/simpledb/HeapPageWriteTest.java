@@ -11,9 +11,11 @@ import org.junit.Test;
 import simpledb.TestUtil.SkeletonFile;
 import simpledb.common.Database;
 import simpledb.common.DbException;
+import simpledb.common.Debug;
 import simpledb.common.Utility;
 import simpledb.storage.HeapPage;
 import simpledb.storage.HeapPageId;
+import simpledb.storage.IntField;
 import simpledb.storage.Tuple;
 import simpledb.systemtest.SimpleDbTestBase;
 import simpledb.systemtest.SystemTestUtil;
@@ -70,6 +72,9 @@ public class HeapPageWriteTest extends SimpleDbTestBase {
             boolean found = false;
             while (it.hasNext()) {
                 Tuple tup = it.next();
+                if(tup.getField(0).equals(IntField.getInstance(0))){
+                    Debug.log("here");
+                }
                 if (TestUtil.compareTuples(addition, tup)) {
                     found = true;
 
