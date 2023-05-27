@@ -103,6 +103,9 @@ public class HeapFile implements DbFile {
         raf.skipBytes(offset);
         raf.write(buf);
         raf.close();
+        if(pageNo + 1 >= numPages){
+            numPages = pageNo + 1;
+        }
     }
 
     /**
