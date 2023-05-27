@@ -29,7 +29,7 @@ public class BufferPool {
 
     private List<Page> pageList;
 
-    private int pageNum;
+    private final int pageNum;
 
     /**
      * Default number of pages passed to the constructor. This is used by
