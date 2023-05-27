@@ -18,7 +18,7 @@ public class Filter extends Operator {
 
     private final Predicate predicate;
 
-    private final OpIterator child;
+    private OpIterator child;
 
 
     /**
@@ -78,13 +78,12 @@ public class Filter extends Operator {
 
     @Override
     public OpIterator[] getChildren() {
-        // TODO: some code goes here
-        return null;
+        return new OpIterator[]{child};
     }
 
     @Override
     public void setChildren(OpIterator[] children) {
-        // TODO: some code goes here
+        child = children[0];
     }
 
 }

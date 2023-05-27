@@ -16,9 +16,9 @@ public class Join extends Operator {
 
     private final JoinPredicate predicate;
 
-    private final OpIterator child1;
+    private OpIterator child1;
 
-    private final OpIterator child2;
+    private OpIterator child2;
 
     private final TupleDesc mergedTupleDesc;
     private Tuple child1CurrentElement;
@@ -146,14 +146,13 @@ public class Join extends Operator {
 
     @Override
     public OpIterator[] getChildren() {
-
-        // TODO: some code goes here
-        return null;
+        return new OpIterator[]{child1, child2};
     }
 
     @Override
     public void setChildren(OpIterator[] children) {
-        // TODO: some code goes here
+        child1 = children[0];
+        child2 = children[1];
     }
 
 }
