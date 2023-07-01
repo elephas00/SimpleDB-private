@@ -32,7 +32,7 @@ public class Database {
     private Database() {
         _catalog = new Catalog();
         _bufferpool = new BufferPool(BufferPool.DEFAULT_PAGES);
-        _lockManager = new LockManagerImpl();
+        _lockManager = LockManagerImpl.getInstance();
         LogFile tmp = null;
         try {
             tmp = new LogFile(new File(LOGFILENAME));
