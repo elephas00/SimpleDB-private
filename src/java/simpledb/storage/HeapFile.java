@@ -51,6 +51,7 @@ public class HeapFile implements DbFile {
      *
      * @return an ID uniquely identifying this HeapFile.
      */
+    @Override
     public int getId() {
         return file.getAbsolutePath().hashCode();
     }
@@ -60,11 +61,13 @@ public class HeapFile implements DbFile {
      *
      * @return TupleDesc of this DbFile.
      */
+    @Override
     public TupleDesc getTupleDesc() {
         return tupleDesc;
     }
 
     // see DbFile.java for javadocs
+    @Override
     public Page readPage(PageId pid) {
         int offset = pid.getPageNumber() * BufferPool.getPageSize();
         byte[] buf;
@@ -89,6 +92,7 @@ public class HeapFile implements DbFile {
     }
 
     // see DbFile.java for javadocs
+    @Override
     public void writePage(Page page) throws IOException {
         final int pageNo = page.getId().getPageNumber();
         final int pageSize = BufferPool.getPageSize();
@@ -177,6 +181,7 @@ public class HeapFile implements DbFile {
 //    }
 
     // see DbFile.java for javadocs
+    @Override
     public DbFileIterator iterator(TransactionId tid) {
         return DbHeapFileIterator.getInstance(this, tid);
     }
@@ -200,18 +205,14 @@ public class HeapFile implements DbFile {
         }
 
 
-        private void readCurrentPageFromBufferPoll() {
+        private void readCurrentPageFromBufferPoll() throws TransactionAbortedException, DbException {
             HeapPageId pageId = HeapPageId.getInstance(dbFile.getTableId(), curPageNo);
-            try {
-                curPage = (HeapPage) Database.getBufferPool().getPage(transactionId, pageId, Permissions.READ_ONLY);
-            } catch (TransactionAbortedException | DbException | ClassCastException e) {
-                throw new RuntimeException("read next page failed.", e);
-            }
+            curPage = (HeapPage) Database.getBufferPool().getPage(transactionId, pageId, Permissions.READ_ONLY);
             iteratorInCurrentPage = curPage.iterator();
         }
 
         @Override
-        public boolean hasNext() {
+        public boolean hasNext() throws DbException, TransactionAbortedException {
             if (!isOpen) {
                 return false;
             }
@@ -227,7 +228,7 @@ public class HeapFile implements DbFile {
         }
 
         @Override
-        protected Tuple readNext() {
+        protected Tuple readNext() throws DbException, TransactionAbortedException, NoSuchElementException{
             checkIteratorOpen();
             if (hasNext()) {
                 return iteratorInCurrentPage.next();

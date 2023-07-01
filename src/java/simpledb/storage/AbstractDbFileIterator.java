@@ -10,11 +10,13 @@ import java.util.NoSuchElementException;
  */
 public abstract class AbstractDbFileIterator implements DbFileIterator {
 
+    @Override
     public boolean hasNext() throws DbException, TransactionAbortedException {
         if (next == null) next = readNext();
         return next != null;
     }
 
+    @Override
     public Tuple next() throws DbException, TransactionAbortedException,
             NoSuchElementException {
         if (next == null) {

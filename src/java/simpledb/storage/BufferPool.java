@@ -33,7 +33,7 @@ public class BufferPool {
 
     private static int pageSize = DEFAULT_PAGE_SIZE;
 
-    private List<Page> pageList;
+    private final List<Page> pageList;
 
     private final int pageNum;
 
@@ -103,7 +103,7 @@ public class BufferPool {
         }
         boolean acquiredLock = Database.getLockManager().lockPage(tid, pid, perm);
         if(!acquiredLock){
-            throw new TransactionAbortedException();
+            throw new TransactionAbortedException("failed to acquire lock for page " + pid);
         }
         return target;
     }
@@ -149,6 +149,11 @@ public class BufferPool {
             } catch (IOException e) {
                 Thread.currentThread().interrupt();
             }
+        }else{
+            Set<Page> rollbackPages = pageList.stream()
+                    .filter(page -> Database.getLockManager().holdsLock(tid, page.getId()) && tid.equals(page.isDirty()))
+                    .collect(Collectors.toSet());
+            pageList.removeAll(rollbackPages);
         }
         transactionComplete(tid);
     }
@@ -226,6 +231,7 @@ public class BufferPool {
         for (Page page : pageList) {
             flushPage(page.getId());
         }
+        Database.getLockManager().releaseAllLocks();
     }
 
     /**
@@ -238,15 +244,16 @@ public class BufferPool {
      * are removed from the cache so they can be reused safely
      */
     public synchronized void removePage(PageId pid) {
-        Page page = null;
-        try {
-            page = getPage(null, pid, null);
-        } catch (TransactionAbortedException e) {
-            throw new RuntimeException(e);
-        } catch (DbException e) {
-            throw new RuntimeException(e);
+        if(pid == null){
+            return;
         }
-        pageList.remove(page);
+        for (Page page : pageList) {
+            if(pid.equals(page.getId())){
+                pageList.remove(page);
+                return;
+            }
+        }
+        throw new RuntimeException("remove page failed, page not in buffer pool");
     }
 
     /**
@@ -288,16 +295,14 @@ public class BufferPool {
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
     private synchronized void evictPage() throws DbException {
-        // FIFO strategy.
-        Page evictPage = pageList.get(0);
-        try {
-            if (evictPage.isDirty() != null) {
-                flushPage(evictPage.getId());
+        // FIFO strategy, remove first non-dirty page in buffer poll.
+        for (Page page : pageList) {
+            if(page.isDirty() == null){
+                removePage(page.getId());
+                return;
             }
-            removePage(evictPage.getId());
-        } catch (IOException e) {
-            throw new DbException("evict page failed " + e.getMessage());
         }
+        throw new DbException("evict page failed, buffer pool is full with dirty page.");
     }
 
 }

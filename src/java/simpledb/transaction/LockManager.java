@@ -9,15 +9,15 @@ public interface LockManager {
      * @param tid   transaction id
      * @param pid   page id
      * @param perm  permission
-     * @return
+     * @return      true if lock acquired
      */
-    boolean lockPage(TransactionId tid, PageId pid, Permissions perm);
+    boolean lockPage(TransactionId tid, PageId pid, Permissions perm) throws TransactionAbortedException;
 
     /**
      * unlock a page for a transaction
      * @param tid   transaction id
      * @param pid   page id
-     * @return
+     * @return      true if lock released.
      */
     boolean unlockPage(TransactionId tid, PageId pid);
 
@@ -37,5 +37,10 @@ public interface LockManager {
      */
     boolean unlockAllPages(TransactionId transactionId);
 
+    /**
+     * method for testing when initialize test case, this method
+     * should execute after all test pages flush to disk.
+     */
+    void releaseAllLocks();
 }
 

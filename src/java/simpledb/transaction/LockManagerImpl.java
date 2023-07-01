@@ -29,7 +29,7 @@ public class LockManagerImpl implements LockManager{
     }
 
     @Override
-    public boolean lockPage(TransactionId transactionId, PageId pageId, Permissions permission) {
+    public boolean lockPage(TransactionId transactionId, PageId pageId, Permissions permission) throws TransactionAbortedException{
         if (transactionId == null) {
             return true;
         }
@@ -46,10 +46,8 @@ public class LockManagerImpl implements LockManager{
         } else {
             throw new RuntimeException("unknown permission " + permission);
         }
-
-        // TODO:  check if acquired is true or false.
-        if (!acquired) {
-            throw new RuntimeException("failed to acquire lock for page " + pageId.toString());
+        if (!acquired){
+            return false;
         }
         Set<PageLock> locks4xaction = transactionLockTable.get(transactionId);
         if (locks4xaction == null) {
@@ -75,9 +73,6 @@ public class LockManagerImpl implements LockManager{
 
     @Override
     public boolean holdsLock(TransactionId tid, PageId pid) {
-        if(tid == null){
-            return true;
-        }
         Set<PageLock> holdLocks = transactionLockTable.get(tid);
         if(holdLocks == null){
             return false;
@@ -101,6 +96,12 @@ public class LockManagerImpl implements LockManager{
         }
         transactionLockTable.put(transactionId, new HashSet<>());
         return true;
+    }
+
+    @Override
+    public void releaseAllLocks() {
+        this.lockTable.clear();
+        this.transactionLockTable.clear();
     }
 
 }
