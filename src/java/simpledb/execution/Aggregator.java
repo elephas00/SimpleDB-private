@@ -1,9 +1,12 @@
 package simpledb.execution;
 
+import simpledb.storage.Field;
+import simpledb.storage.IntField;
 import simpledb.storage.Tuple;
 import simpledb.storage.TupleIterator;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * The common interface for any class that can compute an aggregate over a
@@ -84,5 +87,44 @@ public interface Aggregator extends Serializable {
      * @see TupleIterator for a possible helper
      */
     OpIterator iterator();
+
+    static IntField computeAggregating(List<Field> fieldList, Op aop){
+        int fieldValue;
+        if(Op.COUNT.equals(aop)){
+            fieldValue = fieldList.size();
+        }else if(Op.MIN.equals(aop)){
+            int min = Integer.MAX_VALUE;
+            for(Field f : fieldList){
+                int intFieldValue = ((IntField) f).getValue();
+                if(min > intFieldValue){
+                    min = intFieldValue;
+                }
+            }
+            fieldValue = min;
+        }else if(Op.MAX.equals(aop)){
+            int max = Integer.MIN_VALUE;
+            for(Field f : fieldList){
+                int intFieldValue = ((IntField) f).getValue();
+                if(max < intFieldValue){
+                    max = intFieldValue;
+                }
+            }
+            fieldValue = max;
+        }else if(Op.SUM.equals(aop) || Op.AVG.equals(aop)){
+            int sum = 0;
+            for(Field f : fieldList){
+                int intFieldValue = ((IntField) f).getValue();
+                sum += intFieldValue;
+            }
+            if(Op.SUM.equals(aop)){
+                fieldValue = sum;
+            }else{
+                fieldValue = sum / fieldList.size();
+            }
+        }else{
+            throw new IllegalStateException("impossible to reach here.");
+        }
+        return IntField.getInstance(fieldValue);
+    }
 
 }
