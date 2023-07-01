@@ -1,10 +1,14 @@
 package simpledb.storage;
 
 import simpledb.common.*;
+import simpledb.transaction.LockManager;
+import simpledb.transaction.LockManagerImpl;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
+
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static simpledb.common.Database.getCatalog;
 
@@ -26,6 +30,8 @@ public class BufferPool {
     private static final int DEFAULT_PAGE_SIZE = 4096;
 
     private static int pageSize = DEFAULT_PAGE_SIZE;
+
+    private LockManager lockManager = new LockManagerImpl();
 
     private List<Page> pageList;
 
@@ -80,12 +86,12 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
             throws TransactionAbortedException, DbException {
         // traversal the page list to find page.
-        for(Page page : pageList){
-            if(page != null && pid.equals(page.getId())){
+        for (Page page : pageList) {
+            if (page != null && pid.equals(page.getId())) {
                 return page;
             }
         }
-        if(pageList.size() >= pageNum){
+        if (pageList.size() >= pageNum) {
             evictPage();
         }
         Page loadPage = Database.getCatalog().getTable(pid.getTableId()).readPage(pid);
@@ -95,16 +101,13 @@ public class BufferPool {
 
     /**
      * Releases the lock on a page.
-     * Calling this is very risky, and may result in wrong behavior. Think hard
-     * about who needs to call this and why, and why they can run the risk of
-     * calling it.
      *
      * @param tid the ID of the transaction requesting the unlock
      * @param pid the ID of the page to unlock
      */
     public void unsafeReleasePage(TransactionId tid, PageId pid) {
-        // TODO: some code goes here
-        // not necessary for lab1|lab2
+        lockManager.unlockPage(tid, pid);
+
     }
 
     /**
@@ -113,17 +116,14 @@ public class BufferPool {
      * @param tid the ID of the transaction requesting the unlock
      */
     public void transactionComplete(TransactionId tid) {
-        // TODO: some code goes here
-        // not necessary for lab1|lab2
+        lockManager.unlockAllPages(tid);
     }
 
     /**
      * Return true if the specified transaction has a lock on the specified page
      */
     public boolean holdsLock(TransactionId tid, PageId p) {
-        // TODO: some code goes here
-        // not necessary for lab1|lab2
-        return false;
+        return lockManager.holdsLock(tid, p);
     }
 
     /**
@@ -134,8 +134,14 @@ public class BufferPool {
      * @param commit a flag indicating whether we should commit or abort
      */
     public void transactionComplete(TransactionId tid, boolean commit) {
-        // TODO: some code goes here
-        // not necessary for lab1|lab2
+        if(commit) {
+            try {
+                flushPages(tid);
+            } catch (IOException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        transactionComplete(tid);
     }
 
     /**
@@ -158,11 +164,11 @@ public class BufferPool {
         // FIXME
         DbFile dbFile = getCatalog().getDatabaseFile(tableId);
         List<Page> dirtyPages = dbFile.insertTuple(tid, t);
-        for(Page dirtyPage : dirtyPages){
-            if(pageList.contains(dirtyPage)){
+        for (Page dirtyPage : dirtyPages) {
+            if (pageList.contains(dirtyPage)) {
                 continue;
             }
-            if(pageList.size() == pageNum){
+            if (pageList.size() == pageNum) {
                 evictPage();
             }
             dbFile.writePage(dirtyPage);
@@ -190,11 +196,11 @@ public class BufferPool {
         int tableId = recordId.getPageId().getTableId();
         DbFile dbFile = getCatalog().getDatabaseFile(tableId);
         List<Page> dirtyPages = dbFile.deleteTuple(tid, t);
-        for(Page dirtyPage : dirtyPages){
-            if(pageList.contains(dirtyPage)){
+        for (Page dirtyPage : dirtyPages) {
+            if (pageList.contains(dirtyPage)) {
                 continue;
             }
-            if(pageList.size() == pageNum){
+            if (pageList.size() == pageNum) {
                 evictPage();
                 pageList.add(dirtyPage);
             }
@@ -208,9 +214,9 @@ public class BufferPool {
      * break simpledb if running in NO STEAL mode.
      */
     public synchronized void flushAllPages() throws IOException {
-        // TODO: some code goes here
-        // not necessary for lab1
-
+        for (Page page : pageList) {
+            flushPage(page.getId());
+        }
     }
 
     /**
@@ -258,8 +264,14 @@ public class BufferPool {
      * Write all pages of the specified transaction to disk.
      */
     public synchronized void flushPages(TransactionId tid) throws IOException {
-        // TODO: some code goes here
-        // not necessary for lab1|lab2
+        Set<Page> dirtyPages = pageList.stream()
+                .filter(page -> lockManager.holdsLock(tid, page.getId()))
+                .filter(page -> page.isDirty() == tid)
+                .collect(Collectors.toSet());
+
+        for (Page page : dirtyPages){
+            flushPage(page.getId());
+        }
     }
 
     /**
@@ -269,12 +281,12 @@ public class BufferPool {
     private synchronized void evictPage() throws DbException {
         // FIFO strategy.
         Page evictPage = pageList.get(0);
-        try{
-            if(evictPage.isDirty() != null){
+        try {
+            if (evictPage.isDirty() != null) {
                 flushPage(evictPage.getId());
             }
             removePage(evictPage.getId());
-        }catch (IOException e){
+        } catch (IOException e) {
             throw new DbException("evict page failed " + e.getMessage());
         }
     }
