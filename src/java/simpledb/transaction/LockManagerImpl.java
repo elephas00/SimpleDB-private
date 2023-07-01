@@ -6,12 +6,12 @@ import simpledb.storage.PageId;
 public class LockManagerImpl implements LockManager{
     @Override
     public boolean lockPage(TransactionId tid, PageId pid, Permissions perm) {
-        return false;
+        return true;
     }
 
     @Override
     public boolean unlockPage(TransactionId tid, PageId pid) {
-        return false;
+        return true;
     }
 
     @Override

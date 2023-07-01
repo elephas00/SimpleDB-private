@@ -107,53 +107,44 @@ public class HeapFile implements DbFile {
         return (int) file.length() / BufferPool.getPageSize();
     }
 
-    // see DbFile.java for javadocs
-    public List<Page> insertTuple(TransactionId tid, Tuple t)
-            throws DbException, IOException, TransactionAbortedException {
+
+    private Page findPageWithEmptySlot(TransactionId tid) throws TransactionAbortedException, DbException, IOException {
         final int numPages = numPages();
-        boolean needNewPage = true;
-        Page dirtyPage = null;
+        Page res = null;
         for (int i = 0; i < numPages; i++) {
             HeapPageId pid = HeapPageId.getInstance(getTableId(), i);
-            Page page = Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
+            boolean holdsLock = Database.getBufferPool().holdsLock(tid, pid);
+            Page page = Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
             HeapPage heapPage = (HeapPage) page;
-            if (insertTupleToPage(heapPage, t, tid)) {
-                needNewPage = false;
-                dirtyPage = heapPage;
+            if(heapPage.getNumUnusedSlots() > 0){
+                res = heapPage;
                 break;
+            }else if(!holdsLock){
+                Database.getLockManager().unlockPage(tid, pid);
             }
         }
-        if (needNewPage) {
+        if (res == null) {
+            // need a new page.
             HeapPageId pid = HeapPageId.getInstance(getTableId(), numPages);
             HeapPage emptyPage = HeapPage.getEmptyInstance(pid);
-            insertTupleToPage(emptyPage, t, tid);
-            dirtyPage = emptyPage;
             writePage(emptyPage);
+            res =  Database.getBufferPool().getPage(tid, emptyPage.getId(), Permissions.READ_ONLY);
         }
+        return res;
+    }
+
+    // see DbFile.java for javadocs
+    @Override
+    public List<Page> insertTuple(TransactionId tid, Tuple t)
+            throws DbException, IOException, TransactionAbortedException {
+        Page page = findPageWithEmptySlot(tid);
+        Page readWritePage = Database.getBufferPool().getPage(tid, page.getId(), Permissions.READ_WRITE);
+        HeapPage dirtyPage = (HeapPage) readWritePage;
+        dirtyPage.insertTuple(t);
+        dirtyPage.markDirty(true, tid);
         List<Page> dirtyPages = new LinkedList<>();
         dirtyPages.add(dirtyPage);
         return dirtyPages;
-    }
-
-    /**
-     * A help function to insert a tuple to a given page.
-     * If the page is full, return false.
-     * If the page is not full, insert tuple tup to this page.
-     *
-     * @param heapPage page id of given page.
-     * @param tup      given tuple
-     * @param tid      given transaction id.
-     * @return true if insertion is success.
-     * @throws DbException
-     * @throws TransactionAbortedException
-     */
-    private boolean insertTupleToPage(HeapPage heapPage, Tuple tup, TransactionId tid) throws DbException, TransactionAbortedException {
-        if (heapPage.getNumUnusedSlots() > 0) {
-            heapPage.insertTuple(tup);
-            heapPage.markDirty(true, tid);
-            return true;
-        }
-        return false;
     }
 
     private int getTableId() {
@@ -161,6 +152,7 @@ public class HeapFile implements DbFile {
     }
 
     // see DbFile.java for javadocs
+   @Override
     public List<Page> deleteTuple(TransactionId tid, Tuple t) throws DbException,
             TransactionAbortedException {
         RecordId recordId = t.getRecordId();

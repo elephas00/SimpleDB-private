@@ -1,13 +1,15 @@
 package simpledb.storage;
 
-import simpledb.common.*;
-import simpledb.transaction.LockManager;
-import simpledb.transaction.LockManagerImpl;
+import simpledb.common.Database;
+import simpledb.common.DbException;
+import simpledb.common.Permissions;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static simpledb.common.Database.getCatalog;
@@ -30,8 +32,6 @@ public class BufferPool {
     private static final int DEFAULT_PAGE_SIZE = 4096;
 
     private static int pageSize = DEFAULT_PAGE_SIZE;
-
-    private LockManager lockManager = new LockManagerImpl();
 
     private List<Page> pageList;
 
@@ -86,17 +86,26 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
             throws TransactionAbortedException, DbException {
         // traversal the page list to find page.
-        for (Page page : pageList) {
-            if (page != null && pid.equals(page.getId())) {
-                return page;
+        Page target = null;
+        for(Page page : pageList){
+            if(page != null && pid.equals(page.getId())){
+                target = page;
+                break;
             }
         }
-        if (pageList.size() >= pageNum) {
-            evictPage();
+        if(target == null){
+            if(pageList.size() >= pageNum){
+                evictPage();
+            }
+            Page loadPage = Database.getCatalog().getTable(pid.getTableId()).readPage(pid);
+            pageList.add(loadPage);
+            target = loadPage;
         }
-        Page loadPage = Database.getCatalog().getTable(pid.getTableId()).readPage(pid);
-        pageList.add(loadPage);
-        return loadPage;
+        boolean acquiredLock = Database.getLockManager().lockPage(tid, pid, perm);
+        if(!acquiredLock){
+            throw new TransactionAbortedException();
+        }
+        return target;
     }
 
     /**
@@ -106,7 +115,7 @@ public class BufferPool {
      * @param pid the ID of the page to unlock
      */
     public void unsafeReleasePage(TransactionId tid, PageId pid) {
-        lockManager.unlockPage(tid, pid);
+        Database.getLockManager().unlockPage(tid, pid);
 
     }
 
@@ -116,14 +125,14 @@ public class BufferPool {
      * @param tid the ID of the transaction requesting the unlock
      */
     public void transactionComplete(TransactionId tid) {
-        lockManager.unlockAllPages(tid);
+        Database.getLockManager().unlockAllPages(tid);
     }
 
     /**
      * Return true if the specified transaction has a lock on the specified page
      */
     public boolean holdsLock(TransactionId tid, PageId p) {
-        return lockManager.holdsLock(tid, p);
+        return Database.getLockManager().holdsLock(tid, p);
     }
 
     /**
@@ -265,7 +274,7 @@ public class BufferPool {
      */
     public synchronized void flushPages(TransactionId tid) throws IOException {
         Set<Page> dirtyPages = pageList.stream()
-                .filter(page -> lockManager.holdsLock(tid, page.getId()))
+                .filter(page -> Database.getLockManager().holdsLock(tid, page.getId()))
                 .filter(page -> page.isDirty() == tid)
                 .collect(Collectors.toSet());
 
