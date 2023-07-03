@@ -2,6 +2,8 @@ package simpledb.common;
 
 import simpledb.storage.BufferPool;
 import simpledb.storage.LogFile;
+import simpledb.transaction.LockManager;
+import simpledb.transaction.LockManagerImpl;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,12 +24,15 @@ public class Database {
     private final Catalog _catalog;
     private final BufferPool _bufferpool;
 
+    private final LockManager _lockManager;
+
     private final static String LOGFILENAME = "log";
     private final LogFile _logfile;
 
     private Database() {
         _catalog = new Catalog();
         _bufferpool = new BufferPool(BufferPool.DEFAULT_PAGES);
+        _lockManager = LockManagerImpl.getInstance();
         LogFile tmp = null;
         try {
             tmp = new LogFile(new File(LOGFILENAME));
@@ -82,4 +87,7 @@ public class Database {
         _instance.set(new Database());
     }
 
+    public static LockManager getLockManager() {
+        return _instance.get()._lockManager;
+    }
 }

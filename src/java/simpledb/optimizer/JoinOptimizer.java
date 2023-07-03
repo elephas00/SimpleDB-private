@@ -105,7 +105,11 @@ public class JoinOptimizer {
             // HINT: You may need to use the variable "j" if you implemented
             // a join algorithm that's more complicated than a basic
             // nested-loops join.
-            return -1.0;
+            // TODO: more efficient calculate method.
+            double scanCost = cost1;
+            double ioCost = card1 * cost2;
+            double cpuCost = card1 * card2;
+            return scanCost + ioCost + cpuCost;
         }
     }
 
@@ -143,9 +147,21 @@ public class JoinOptimizer {
                                                    String field2PureName, int card1, int card2, boolean t1pkey,
                                                    boolean t2pkey, Map<String, TableStats> stats,
                                                    Map<String, Integer> tableAliasToId) {
-        int card = 1;
-        // TODO: some code goes here
-        return card <= 0 ? 1 : card;
+        if(Predicate.Op.EQUALS.equals(joinOp)){
+            int card = 0;
+            if(t1pkey && t2pkey){
+                card = Math.min(card1, card2);
+            }else if(t1pkey){
+                card = card2;
+            }else if(t2pkey){
+                card = card1;
+            }else{
+                card = Math.max(card1, card2);
+            }
+            return card;
+        }else{
+            return (int) (0.3 * card1 * card2);
+        }
     }
 
     /**
@@ -179,6 +195,38 @@ public class JoinOptimizer {
     }
 
     /**
+     * return a list of subsets that index i have subsets with size i + 1
+     * @param v
+     * @return
+     * @param <T>
+     */
+    private <T> List<Set<Set<T>>> enumerateSubSetsAtOnce(List<T> v){
+        int size = v.size();
+        List<Set<Set<T>>> list = new ArrayList<>(size);
+        for(int i = 0; i < size; i++){
+            list.add(new HashSet<>());
+        }
+        Stack<T> stack = new Stack<>();
+        enumerateSubSetsAtOnceDfs(v, list, stack, 0, size);
+        return list;
+    }
+
+    private <T> void enumerateSubSetsAtOnceDfs(List<T> v, List<Set<Set<T>>> res, Stack<T> stack, int cur, int size){
+        if(cur == size){
+            return;
+        }
+        for(int i = cur; i < size; i++){
+            T elem = v.get(i);
+            stack.push(elem);
+            int stackSize = stack.size();
+            res.get(stackSize - 1).add(new HashSet<>(stack));
+            enumerateSubSetsAtOnceDfs(v, res, stack, i + 1, size);
+            stack.pop();
+        }
+    }
+
+
+    /**
      * Compute a logical, reasonably efficient join on the specified tables. See
      * the Lab 3 description for hints on how this should be implemented.
      *
@@ -198,10 +246,36 @@ public class JoinOptimizer {
             Map<String, TableStats> stats,
             Map<String, Double> filterSelectivities, boolean explain)
             throws ParsingException {
-        // Not necessary for labs 1 and 2.
+        PlanCache pc = PlanCache.getInstance();
+        int joinSize = joins.size();
+        List<Set<Set<LogicalJoinNode>>> subsetList = enumerateSubSetsAtOnce(joins);
+        for(int i = 1; i <= joinSize; i++){
+            Set<Set<LogicalJoinNode>> subsetsWithSizeI = subsetList.get(i - 1);
+            for(Set<LogicalJoinNode> subPlan : subsetsWithSizeI){
+                Double bestCostSoFar = Double.MAX_VALUE;
+                CostCard bestPlan = null;
+                for(LogicalJoinNode nodeToRemove : subPlan){
+                    CostCard costCard = computeCostAndCardOfSubplan(stats, filterSelectivities, nodeToRemove, subPlan, bestCostSoFar, pc);
+                    if(costCard == null){
+                        continue;
+                    }
+                    if(costCard.cost < bestCostSoFar){
+                        bestPlan = costCard;
+                        bestCostSoFar = costCard.cost;
+                    }
+                }
+                if(bestPlan != null){
+                    pc.addPlan(subPlan, bestCostSoFar, bestPlan.card, bestPlan.plan);
+                }
 
-        // TODO: some code goes here
-        return joins;
+            }
+        }
+        List<LogicalJoinNode> res = pc.getOrder(new HashSet<>(joins));
+        if(explain){
+            printJoins(res, pc, stats, filterSelectivities);
+        }
+        return res;
+
     }
 
     // ===================== Private Methods =================================
@@ -233,7 +307,8 @@ public class JoinOptimizer {
     private CostCard computeCostAndCardOfSubplan(
             Map<String, TableStats> stats,
             Map<String, Double> filterSelectivities,
-            LogicalJoinNode joinToRemove, Set<LogicalJoinNode> joinSet,
+            LogicalJoinNode joinToRemove,
+            Set<LogicalJoinNode> joinSet,
             double bestCostSoFar, PlanCache pc) throws ParsingException {
 
         LogicalJoinNode j = joinToRemove;
