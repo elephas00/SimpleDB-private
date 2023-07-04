@@ -64,6 +64,7 @@ public class BTreeFile implements DbFile {
      *
      * @return an ID uniquely identifying this BTreeFile.
      */
+    @Override
     public int getId() {
         return tableid;
     }
@@ -73,6 +74,7 @@ public class BTreeFile implements DbFile {
      *
      * @return TupleDesc of this DbFile.
      */
+    @Override
     public TupleDesc getTupleDesc() {
         return td;
     }
@@ -84,6 +86,7 @@ public class BTreeFile implements DbFile {
      * @param pid - the id of the page to read from disk
      * @return the page constructed from the contents on disk
      */
+    @Override
     public Page readPage(PageId pid) {
         BTreePageId id = (BTreePageId) pid;
 
@@ -185,8 +188,32 @@ public class BTreeFile implements DbFile {
     private BTreeLeafPage findLeafPage(TransactionId tid, Map<PageId, Page> dirtypages, BTreePageId pid, Permissions perm,
                                        Field f)
             throws DbException, TransactionAbortedException {
-        // TODO: some code goes here
-        return null;
+        Page currentPage = getPage(tid, dirtypages, pid, perm);
+        if(currentPage instanceof BTreeLeafPage){
+            return (BTreeLeafPage) currentPage;
+        }
+        if(!(currentPage instanceof BTreeInternalPage)) {
+            // TODO: handle this case.
+            throw new RuntimeException();
+        }
+
+        BTreeInternalPage internalPage = (BTreeInternalPage) currentPage;
+        if(f == null){
+            BTreeEntry leftMostEntry = internalPage.iterator().next();
+            return findLeafPage(tid, dirtypages, leftMostEntry.getLeftChild(), perm, null);
+        }
+        BTreeEntry entry = null;
+        for (Iterator<BTreeEntry> it = internalPage.iterator(); it.hasNext(); ) {
+            BTreeEntry next = it.next();
+            if(next == null){
+                break;
+            }
+            entry = next;
+            if(f.compare(Op.LESS_THAN_OR_EQ, entry.getKey())){
+                return findLeafPage(tid, dirtypages, entry.getLeftChild(), perm, f);
+            }
+        }
+        return findLeafPage(tid, dirtypages, entry.getRightChild(), perm, f);
     }
 
     /**
@@ -410,9 +437,10 @@ public class BTreeFile implements DbFile {
      * @param tid - the transaction id
      * @param t   - the tuple to insert
      * @return a list of all pages that were dirtied by this operation. Could include
-     *         many pages since parent pointers will need to be updated when an internal node splits.
+     * many pages since parent pointers will need to be updated when an internal node splits.
      * @see #splitLeafPage(TransactionId, Map, BTreeLeafPage, Field)
      */
+    @Override
     public List<Page> insertTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
         Map<PageId, Page> dirtypages = new HashMap<>();
@@ -767,7 +795,7 @@ public class BTreeFile implements DbFile {
      * @param tid - the transaction id
      * @param t   - the tuple to delete
      * @return a list of all pages that were dirtied by this operation. Could include
-     *         many pages since parent pointers will need to be updated when an internal node merges.
+     * many pages since parent pointers will need to be updated when an internal node merges.
      * @see #handleMinOccupancyPage(TransactionId, Map, BTreePage)
      */
     public List<Page> deleteTuple(TransactionId tid, Tuple t)
@@ -1088,6 +1116,7 @@ class BTreeFileIterator extends AbstractDbFileIterator {
     /**
      * rewind this iterator back to the beginning of the tuples
      */
+    @Override
     public void rewind() throws DbException, TransactionAbortedException {
         close();
         open();
@@ -1133,6 +1162,7 @@ class BTreeSearchIterator extends AbstractDbFileIterator {
      * Open this iterator by getting an iterator on the first leaf page applicable
      * for the given predicate operation
      */
+    @Override
     public void open() throws DbException, TransactionAbortedException {
         BTreeRootPtrPage rootPtr = (BTreeRootPtrPage) Database.getBufferPool().getPage(
                 tid, BTreeRootPtrPage.getId(f.getId()), Permissions.READ_ONLY);
@@ -1190,6 +1220,7 @@ class BTreeSearchIterator extends AbstractDbFileIterator {
     /**
      * rewind this iterator back to the beginning of the tuples
      */
+    @Override
     public void rewind() throws DbException, TransactionAbortedException {
         close();
         open();
@@ -1198,6 +1229,7 @@ class BTreeSearchIterator extends AbstractDbFileIterator {
     /**
      * close the iterator
      */
+    @Override
     public void close() {
         super.close();
         it = null;
