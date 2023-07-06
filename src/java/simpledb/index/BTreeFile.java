@@ -672,11 +672,29 @@ public class BTreeFile implements DbFile {
      */
     public void stealFromLeafPage(BTreeLeafPage page, BTreeLeafPage sibling,
                                   BTreeInternalPage parent, BTreeEntry entry, boolean isRightSibling) throws DbException {
-        // TODO: some code goes here
-        //
+
         // Move some of the tuples from the sibling to the page so
         // that the tuples are evenly distributed. Be sure to update
         // the corresponding parent entry.
+        if(isRightSibling){
+            Tuple first = sibling.iterator().next();
+            sibling.deleteTuple(first);
+            page.insertTuple(first);
+            Tuple second = sibling.iterator().next();
+            entry.setKey(second.getField(keyField));
+            parent.updateEntry(entry);
+        }else{
+            Tuple last = sibling.reverseIterator().next();
+            sibling.deleteTuple(last);
+            page.insertTuple(last);
+            entry.setKey(last.getField(keyField));
+            parent.updateEntry(entry);
+        }
+
+        // recursive steal until the elements amount of two siblings are balanced.
+        if(page.getNumTuples() < sibling.getNumTuples()){
+            stealFromLeafPage(page, sibling, parent, entry, isRightSibling);
+        }
     }
 
     /**
@@ -746,11 +764,39 @@ public class BTreeFile implements DbFile {
     public void stealFromLeftInternalPage(TransactionId tid, Map<PageId, Page> dirtypages,
                                           BTreeInternalPage page, BTreeInternalPage leftSibling, BTreeInternalPage parent,
                                           BTreeEntry parentEntry) throws DbException, TransactionAbortedException {
-        // TODO: some code goes here
+
         // Move some of the entries from the left sibling to the page so
         // that the entries are evenly distributed. Be sure to update
         // the corresponding parent entry. Be sure to update the parent
         // pointers of all children in the entries that were moved.
+
+        // remove last element and its right child from left sibling.
+        BTreeEntry leftLast = leftSibling.reverseIterator().next();
+        leftSibling.deleteKeyAndRightChild(leftLast);
+
+        // insert entry steal from left sibling into the right sibling.
+        BTreeEntry rightFirst = page.iterator().next();
+        BTreeEntry stealFromLeftSibling =
+                new BTreeEntry(parentEntry.getKey(), leftLast.getRightChild(), rightFirst.getLeftChild());
+        page.insertEntry(stealFromLeftSibling);
+        page.updateEntry(stealFromLeftSibling);
+        updateParentPointer(tid, dirtypages, page.getId(), stealFromLeftSibling.getLeftChild());
+
+
+        // update entry in the parent page.
+        parentEntry.setKey(leftLast.getKey());
+        parent.updateEntry(parentEntry);
+
+        // mark relative page to dirty.
+        dirtypages.put(page.getId(), page);
+        dirtypages.put(parent.getId(), parent);
+        dirtypages.put(leftSibling.getId(), leftSibling);
+
+        // recursive steal until the elements amount of two siblings are balanced.
+        if(page.getNumEntries() < leftSibling.getNumEntries()){
+            stealFromLeftInternalPage(tid, dirtypages, page, leftSibling, parent, parentEntry);
+        }
+
     }
 
     /**
@@ -777,6 +823,33 @@ public class BTreeFile implements DbFile {
         // that the entries are evenly distributed. Be sure to update
         // the corresponding parent entry. Be sure to update the parent
         // pointers of all children in the entries that were moved.
+
+        // remove first element and its left child from right sibling.
+        BTreeEntry rightFirst = rightSibling.iterator().next();
+        rightSibling.deleteKeyAndLeftChild(rightFirst);
+
+        // insert entry steal from right sibling into the left sibling.
+        BTreeEntry leftLast = page.reverseIterator().next();
+        BTreeEntry stealFromRightSibling =
+                new BTreeEntry(parentEntry.getKey(), leftLast.getRightChild(), rightFirst.getLeftChild());
+        page.insertEntry(stealFromRightSibling);
+        page.updateEntry(stealFromRightSibling);
+        updateParentPointer(tid, dirtypages, page.getId(), stealFromRightSibling.getRightChild());
+
+        // update entry in the parent page.
+        parentEntry.setKey(rightFirst.getKey());
+        parent.updateEntry(parentEntry);
+
+        // mark relative page to dirty.
+        dirtypages.put(page.getId(), page);
+        dirtypages.put(rightSibling.getId(), rightSibling);
+        dirtypages.put(page.getId(), page);
+
+        // recursive steal until the elements amount of two siblings are balanced.
+        if(page.getNumEntries() < rightSibling.getNumEntries()){
+            stealFromRightInternalPage(tid, dirtypages, page, rightSibling, parent, parentEntry);
+        }
+
     }
 
     /**
@@ -806,6 +879,31 @@ public class BTreeFile implements DbFile {
         // the sibling pointers, and make the right page available for reuse.
         // Delete the entry in the parent corresponding to the two pages that are merging -
         // deleteParentEntry() will be useful here
+
+        leftPage.setRightSiblingId(rightPage.getRightSiblingId());
+        if(rightPage.getRightSiblingId() != null){
+            BTreeLeafPage rightSibling = (BTreeLeafPage) getPage(tid, dirtypages, rightPage.getRightSiblingId(), Permissions.READ_WRITE);
+            rightSibling.setLeftSiblingId(leftPage.getId());
+            dirtypages.put(rightSibling.getId(), rightSibling);
+        }
+
+        for (Iterator<Tuple> it = rightPage.iterator(); it.hasNext(); ) {
+            Tuple tup = it.next();
+            rightPage.deleteTuple(tup);
+            leftPage.insertTuple(tup);
+        }
+
+        deleteParentEntry(tid, dirtypages, leftPage, parent, parentEntry);
+        setEmptyPage(tid, dirtypages, rightPage.getId().getPageNumber());
+
+        dirtypages.put(leftPage.getId(), leftPage);
+        dirtypages.put(rightPage.getId(), rightPage);
+        dirtypages.put(parent.getId(), parent);
+
+        // check whether the parent page is below minimum occupancy.
+        if(parent.getNumEntries() < parent.getMaxEntries() / 2){
+            handleMinOccupancyPage(tid, dirtypages, parent);
+        }
     }
 
     /**
@@ -838,6 +936,42 @@ public class BTreeFile implements DbFile {
         // and make the right page available for reuse
         // Delete the entry in the parent corresponding to the two pages that are merging -
         // deleteParentEntry() will be useful here
+
+        // pull down the entry corresponding to the two pages from parent page.
+        BTreeEntry leftLast = leftPage.reverseIterator().next();
+        BTreeEntry rightFirst = rightPage.iterator().next();
+        BTreeEntry entryPullDownFromParent =
+                new BTreeEntry(parentEntry.getKey(), leftLast.getRightChild(), rightFirst.getLeftChild());
+        leftPage.insertEntry(entryPullDownFromParent);
+
+        // move the entries from right page to left page.
+        for (Iterator<BTreeEntry> it = rightPage.iterator(); it.hasNext(); ) {
+            BTreeEntry entry = it.next();
+            rightPage.deleteKeyAndLeftChild(entry);
+            leftPage.insertEntry(entry);
+        }
+
+        // update the parent pointers of the children in the entries that were moved.
+        updateParentPointers(tid, dirtypages, leftPage);
+
+        // delete the entry corresponding to the two page from page page.
+        deleteParentEntry(tid, dirtypages, leftPage, parent, parentEntry);
+
+        // set right page to empty page.
+        setEmptyPage(tid, dirtypages, rightPage.getId().getPageNumber());
+
+        // mark relative pages as dirty page.
+        dirtypages.put(leftPage.getId(), leftPage);
+        dirtypages.put(rightPage.getId(), rightPage);
+        dirtypages.put(parent.getId(), parent);
+
+        // check whether the parent page is below minimum occupancy.
+        if(parent.getNumEntries() < parent.getMaxEntries() / 2){
+            if(parent.pid.pgcateg() != BTreePageId.ROOT_PTR){
+                handleMinOccupancyPage(tid, dirtypages, parent);
+            }
+        }
+
     }
 
     /**
