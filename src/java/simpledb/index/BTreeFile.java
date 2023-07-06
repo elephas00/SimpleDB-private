@@ -254,16 +254,67 @@ public class BTreeFile implements DbFile {
      */
     public BTreeLeafPage splitLeafPage(TransactionId tid, Map<PageId, Page> dirtypages, BTreeLeafPage page, Field field)
             throws DbException, IOException, TransactionAbortedException {
-        // TODO: some code goes here
-        //
         // Split the leaf page by adding a new page on the right of the existing
         // page and moving half of the tuples to the new page.  Copy the middle key up
         // into the parent page, and recursively split the parent as needed to accommodate
         // the new entry.  getParentWithEmtpySlots() will be useful here.  Don't forget to update
         // the sibling pointers of all the affected leaf pages.  Return the page into which a
         // tuple with the given key field should be inserted.
-        return null;
 
+        int maxTuples = page.getMaxTuples();
+        Tuple middlePivot = null;
+        Iterator<Tuple> iterator = page.iterator();
+        for(int i = 0; i < maxTuples / 2; i++){
+            iterator.next();
+        }
+        middlePivot = iterator.next();
+
+        // move the pivot and the elements on the right side of pivot element to a empty page.
+        BTreeLeafPage emptyPage = (BTreeLeafPage) getEmptyPage(tid, dirtypages, BTreePageId.LEAF);
+        page.deleteTuple(middlePivot);
+        emptyPage.insertTuple(middlePivot);
+
+        for (Iterator<Tuple> it = iterator; it.hasNext(); ) {
+            Tuple tup = it.next();
+            page.deleteTuple(tup);
+            emptyPage.insertTuple(tup);
+        }
+
+        // update the left and right sibling of the empty page.
+        if(page.getRightSiblingId() != null){
+            BTreeLeafPage rightSibling = (BTreeLeafPage) getPage(tid, dirtypages, page.getRightSiblingId(), Permissions.READ_WRITE);
+            rightSibling.setLeftSiblingId(emptyPage.getId());
+            emptyPage.setRightSiblingId(rightSibling.getId());
+        }
+        page.setRightSiblingId(emptyPage.getId());
+        emptyPage.setLeftSiblingId(page.getId());
+
+        // insert the pivot element to parent page.
+        BTreeEntry newEntryInParent = new BTreeEntry(middlePivot.getField(page.keyField), page.getId(), emptyPage.getId());
+        BTreeInternalPage pageParent =
+                getParentWithEmptySlots(tid, dirtypages, page.getParentId(), newEntryInParent.getKey());
+
+        List<BTreeEntry> entries = new ArrayList<>();
+        for (Iterator<BTreeEntry> it = pageParent.iterator(); it.hasNext(); ) {
+            BTreeEntry entry = it.next();
+            entries.add(entry);
+        }
+
+        emptyPage.setParentId(pageParent.getId());
+        page.setParentId(pageParent.getId());
+        pageParent.insertEntry(newEntryInParent);
+        pageParent.updateEntry(newEntryInParent);
+
+        // mark relative pages dirty
+        dirtypages.put(page.getId(), page);
+        dirtypages.put(emptyPage.getId(), emptyPage);
+        dirtypages.put(pageParent.getId(), pageParent);
+
+        if(field.compare(Op.LESS_THAN_OR_EQ, middlePivot.getField(page.keyField))){
+            return page;
+        }else {
+            return emptyPage;
+        }
     }
 
     /**
@@ -299,7 +350,54 @@ public class BTreeFile implements DbFile {
         // the parent pointers of all the children moving to the new page.  updateParentPointers()
         // will be useful here.  Return the page into which an entry with the given key field
         // should be inserted.
-        return null;
+
+        // find the middle element of entries as the pivot.
+        int maxEntries = page.getMaxEntries();
+        Iterator<BTreeEntry> iterator = page.iterator();
+        BTreeEntry middlePivot = null;
+        for (int i = 0; i < (maxEntries - 1) / 2; i++) {
+            iterator.next();
+        }
+        middlePivot = iterator.next();
+
+        // find the parent with empty slots
+        BTreePageId parentId = page.getParentId();
+        BTreeInternalPage parentPage = getParentWithEmptySlots(tid, dirtypages, parentId, middlePivot.getKey());
+
+        // split page
+        BTreeInternalPage newPage = (BTreeInternalPage) getEmptyPage(tid, dirtypages, BTreePageId.INTERNAL);
+        // copy entries on the right of pivot to new page.
+        // remove the pivot and the entries on the right of pivot from the old
+        while(iterator.hasNext()) {
+            BTreeEntry entry = iterator.next();
+            page.deleteKeyAndRightChild(entry);
+            newPage.insertEntry(entry);
+            newPage.updateEntry(entry);
+        }
+        updateParentPointers(tid, dirtypages, newPage);
+
+        page.deleteKeyAndRightChild(middlePivot);
+        middlePivot.setLeftChild(page.getId());
+        middlePivot.setRightChild(newPage.getId());
+        parentPage.insertEntry(middlePivot);
+        parentPage.updateEntry(middlePivot);
+
+        updateParentPointer(tid, dirtypages, parentPage.getId(), newPage.getId());
+        page.setParentId(parentPage.getId());
+        newPage.setParentId(parentPage.getId());
+
+        // mark relative pages dirty.
+        dirtypages.put(page.getId(), page);
+        dirtypages.put(newPage.getId(), newPage);
+        dirtypages.put(parentPage.getId(), parentPage);
+
+        // after split, insert the field to current page.
+        if(field.compare(Op.LESS_THAN_OR_EQ, middlePivot.getKey())){
+            return page;
+        }else {
+            return newPage;
+        }
+
     }
 
     /**
@@ -370,8 +468,8 @@ public class BTreeFile implements DbFile {
         if (!p.getParentId().equals(pid)) {
             p = (BTreePage) getPage(tid, dirtypages, child, Permissions.READ_WRITE);
             p.setParentId(pid);
+            dirtypages.put(child, p);
         }
-
     }
 
     /**

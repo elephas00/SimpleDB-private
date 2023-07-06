@@ -446,19 +446,23 @@ public class BTreeInternalPage extends BTreePage {
      *                     table id, or child page category is a mismatch, or the entry is invalid
      */
     public void insertEntry(BTreeEntry e) throws DbException {
-        if (!e.getKey().getType().equals(td.getFieldType(keyField)))
+        if (!e.getKey().getType().equals(td.getFieldType(keyField))) {
             throw new DbException("key field type mismatch, in insertEntry");
+        }
 
-        if (e.getLeftChild().getTableId() != pid.getTableId() || e.getRightChild().getTableId() != pid.getTableId())
+        if (e.getLeftChild().getTableId() != pid.getTableId() || e.getRightChild().getTableId() != pid.getTableId()) {
             throw new DbException("table id mismatch in insertEntry");
+        }
 
         if (childCategory == 0) {
-            if (e.getLeftChild().pgcateg() != e.getRightChild().pgcateg())
+            if (e.getLeftChild().pgcateg() != e.getRightChild().pgcateg()) {
                 throw new DbException("child page category mismatch in insertEntry");
+            }
 
             childCategory = e.getLeftChild().pgcateg();
-        } else if (e.getLeftChild().pgcateg() != childCategory || e.getRightChild().pgcateg() != childCategory)
+        } else if (e.getLeftChild().pgcateg() != childCategory || e.getRightChild().pgcateg() != childCategory) {
             throw new DbException("child page category mismatch in insertEntry");
+        }
 
         // if this is the first entry, add it and return
         if (getNumEmptySlots() == getMaxEntries()) {
@@ -480,8 +484,9 @@ public class BTreeInternalPage extends BTreePage {
             }
         }
 
-        if (emptySlot == -1)
+        if (emptySlot == -1) {
             throw new DbException("called insertEntry on page with no empty slots.");
+        }
 
         // find the child pointer matching the left or right child in this entry
         int lessOrEqKey = -1;
@@ -570,19 +575,23 @@ public class BTreeInternalPage extends BTreePage {
     /**
      * Returns the number of empty slots on this page.
      */
+    @Override
     public int getNumEmptySlots() {
         int cnt = 0;
         // start from 1 because the first key slot is not used
         // since a node with m keys has m+1 pointers
-        for (int i = 1; i < numSlots; i++)
-            if (!isSlotUsed(i))
+        for (int i = 1; i < numSlots; i++) {
+            if (!isSlotUsed(i)) {
                 cnt++;
+            }
+        }
         return cnt;
     }
 
     /**
      * Returns true if associated slot on this page is filled.
      */
+    @Override
     public boolean isSlotUsed(int i) {
         int headerbit = i % 8;
         int headerbyte = (i - headerbit) / 8;
@@ -655,8 +664,9 @@ public class BTreeInternalPage extends BTreePage {
      */
     protected BTreePageId getChildId(int i) throws NoSuchElementException {
 
-        if (i < 0 || i >= children.length)
+        if (i < 0 || i >= children.length) {
             throw new NoSuchElementException();
+        }
 
         try {
             if (!isSlotUsed(i)) {
@@ -686,9 +696,11 @@ class BTreeInternalPageIterator implements Iterator<BTreeEntry> {
         this.p = p;
     }
 
+    @Override
     public boolean hasNext() {
-        if (nextToReturn != null)
+        if (nextToReturn != null) {
             return true;
+        }
 
         try {
             if (prevChildId == null) {
@@ -713,6 +725,7 @@ class BTreeInternalPageIterator implements Iterator<BTreeEntry> {
         }
     }
 
+    @Override
     public BTreeEntry next() {
         BTreeEntry next = nextToReturn;
 
@@ -721,8 +734,9 @@ class BTreeInternalPageIterator implements Iterator<BTreeEntry> {
                 next = nextToReturn;
                 nextToReturn = null;
                 return next;
-            } else
+            } else {
                 throw new NoSuchElementException();
+            }
         } else {
             nextToReturn = null;
             return next;
@@ -751,6 +765,7 @@ class BTreeInternalPageReverseIterator implements Iterator<BTreeEntry> {
         }
     }
 
+    @Override
     public boolean hasNext() {
         if (nextToReturn != null)
             return true;
@@ -778,6 +793,7 @@ class BTreeInternalPageReverseIterator implements Iterator<BTreeEntry> {
         }
     }
 
+    @Override
     public BTreeEntry next() {
         BTreeEntry next = nextToReturn;
 
@@ -786,8 +802,9 @@ class BTreeInternalPageReverseIterator implements Iterator<BTreeEntry> {
                 next = nextToReturn;
                 nextToReturn = null;
                 return next;
-            } else
+            } else {
                 throw new NoSuchElementException();
+            }
         } else {
             nextToReturn = null;
             return next;

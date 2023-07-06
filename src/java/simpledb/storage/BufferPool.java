@@ -2,6 +2,7 @@ package simpledb.storage;
 
 import simpledb.common.Database;
 import simpledb.common.DbException;
+import simpledb.common.Debug;
 import simpledb.common.Permissions;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
@@ -253,7 +254,7 @@ public class BufferPool {
                 return;
             }
         }
-        throw new RuntimeException("remove page failed, page not in buffer pool");
+//        throw new RuntimeException("remove page failed, page not in buffer pool");
     }
 
     /**
