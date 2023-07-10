@@ -2,7 +2,6 @@ package simpledb.storage;
 
 import simpledb.common.Database;
 import simpledb.common.DbException;
-import simpledb.common.Debug;
 import simpledb.common.Permissions;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
@@ -126,7 +125,7 @@ public class BufferPool {
      * @param tid the ID of the transaction requesting the unlock
      */
     public void transactionComplete(TransactionId tid) {
-        Database.getLockManager().unlockAllPages(tid);
+        this.transactionComplete(tid, true);
     }
 
     /**
@@ -156,7 +155,9 @@ public class BufferPool {
                     .collect(Collectors.toSet());
             pageList.removeAll(rollbackPages);
         }
-        transactionComplete(tid);
+
+
+        Database.getLockManager().unlockAllPages(tid);
     }
 
     /**
@@ -176,9 +177,12 @@ public class BufferPool {
      */
     public void insertTuple(TransactionId tid, int tableId, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
-        // FIXME
+
         DbFile dbFile = getCatalog().getDatabaseFile(tableId);
         List<Page> dirtyPages = dbFile.insertTuple(tid, t);
+
+        dirtyPages.forEach(page -> page.markDirty(true, tid));
+
         for (Page dirtyPage : dirtyPages) {
             if (pageList.contains(dirtyPage)) {
                 continue;
@@ -206,11 +210,13 @@ public class BufferPool {
      */
     public void deleteTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
-        // FIXME
+
         RecordId recordId = t.getRecordId();
         int tableId = recordId.getPageId().getTableId();
         DbFile dbFile = getCatalog().getDatabaseFile(tableId);
         List<Page> dirtyPages = dbFile.deleteTuple(tid, t);
+        dirtyPages.forEach(page -> page.markDirty(true, tid));
+
         for (Page dirtyPage : dirtyPages) {
             if (pageList.contains(dirtyPage)) {
                 continue;

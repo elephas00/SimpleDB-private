@@ -300,8 +300,7 @@ public class BTreeFile implements DbFile {
             entries.add(entry);
         }
 
-        emptyPage.setParentId(pageParent.getId());
-        page.setParentId(pageParent.getId());
+        updateParentPointer(tid, dirtypages, pageParent.getId(), emptyPage.getId());
         pageParent.insertEntry(newEntryInParent);
         pageParent.updateEntry(newEntryInParent);
 
@@ -381,10 +380,7 @@ public class BTreeFile implements DbFile {
         middlePivot.setRightChild(newPage.getId());
         parentPage.insertEntry(middlePivot);
         parentPage.updateEntry(middlePivot);
-
         updateParentPointer(tid, dirtypages, parentPage.getId(), newPage.getId());
-        page.setParentId(parentPage.getId());
-        newPage.setParentId(parentPage.getId());
 
         // mark relative pages dirty.
         dirtypages.put(page.getId(), page);
@@ -782,7 +778,6 @@ public class BTreeFile implements DbFile {
         page.updateEntry(stealFromLeftSibling);
         updateParentPointer(tid, dirtypages, page.getId(), stealFromLeftSibling.getLeftChild());
 
-
         // update entry in the parent page.
         parentEntry.setKey(leftLast.getKey());
         parent.updateEntry(parentEntry);
@@ -943,12 +938,14 @@ public class BTreeFile implements DbFile {
         BTreeEntry entryPullDownFromParent =
                 new BTreeEntry(parentEntry.getKey(), leftLast.getRightChild(), rightFirst.getLeftChild());
         leftPage.insertEntry(entryPullDownFromParent);
+        leftPage.updateEntry(entryPullDownFromParent);
 
         // move the entries from right page to left page.
         for (Iterator<BTreeEntry> it = rightPage.iterator(); it.hasNext(); ) {
             BTreeEntry entry = it.next();
             rightPage.deleteKeyAndLeftChild(entry);
             leftPage.insertEntry(entry);
+            leftPage.updateEntry(entry);
         }
 
         // update the parent pointers of the children in the entries that were moved.
