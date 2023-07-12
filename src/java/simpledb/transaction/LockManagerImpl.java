@@ -66,7 +66,7 @@ public class LockManagerImpl implements LockManager{
             throw new RuntimeException("failed to release lock for page " + pageId);
         }
         Set<PageLock> locks4Transaction = transactionLockTable.get(transactionId);
-        locks4Transaction.remove(pageId);
+        locks4Transaction.remove(iPageLock);
         return true;
     }
 
