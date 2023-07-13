@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 import static simpledb.common.Database.getCatalog;
@@ -51,7 +52,7 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         pageNum = numPages;
-        pageList = new LinkedList<>();
+        pageList = new CopyOnWriteArrayList<>();
     }
 
     public static int getPageSize() {
@@ -86,6 +87,10 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
             throws TransactionAbortedException, DbException {
         // traversal the page list to find page.
+        boolean acquiredLock = Database.getLockManager().lockPage(tid, pid, perm);
+        if(!acquiredLock){
+            throw new TransactionAbortedException("failed to acquire lock for page " + pid);
+        }
         Page target = null;
         for(Page page : pageList){
             if(page != null && pid.equals(page.getId())){
@@ -100,10 +105,6 @@ public class BufferPool {
             Page loadPage = Database.getCatalog().getTable(pid.getTableId()).readPage(pid);
             pageList.add(loadPage);
             target = loadPage;
-        }
-        boolean acquiredLock = Database.getLockManager().lockPage(tid, pid, perm);
-        if(!acquiredLock){
-            throw new TransactionAbortedException("failed to acquire lock for page " + pid);
         }
         return target;
     }
@@ -254,13 +255,11 @@ public class BufferPool {
         if(pid == null){
             return;
         }
-        for (Page page : pageList) {
-            if(pid.equals(page.getId())){
-                pageList.remove(page);
-                return;
-            }
-        }
-//        throw new RuntimeException("remove page failed, page not in buffer pool");
+        boolean removed = pageList.removeIf(page -> pid.equals(page.getId()));
+//        if(!removed){
+//            throw new RuntimeException("remove page failed, page not in buffer pool");
+//        }
+
     }
 
     /**
