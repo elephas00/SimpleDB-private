@@ -7,7 +7,6 @@ import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
 
 import java.io.IOException;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -144,6 +143,13 @@ public class BufferPool {
      * @param commit a flag indicating whether we should commit or abort
      */
     public void transactionComplete(TransactionId tid, boolean commit) {
+        // unlock all read only pages first.
+        pageList.stream()
+                .filter(p -> p.isDirty() == null)
+                .map(Page::getId)
+                .filter(pid -> Database.getBufferPool().holdsLock(tid, pid))
+                .forEach(pid -> Database.getLockManager().unlockPage(tid, pid));
+
         if(commit) {
             try {
                 flushPages(tid);
@@ -151,13 +157,10 @@ public class BufferPool {
                 Thread.currentThread().interrupt();
             }
         }else{
-            Set<Page> rollbackPages = pageList.stream()
-                    .filter(page -> Database.getLockManager().holdsLock(tid, page.getId()) && tid.equals(page.isDirty()))
-                    .collect(Collectors.toSet());
-            pageList.removeAll(rollbackPages);
+            // abort all pages being modified by this transaction.
+            pageList.removeIf(page -> tid.equals(page.isDirty()));
         }
-
-
+        // unlock all pages being modified by this transaction.
         Database.getLockManager().unlockAllPages(tid);
     }
 
@@ -215,18 +218,10 @@ public class BufferPool {
         RecordId recordId = t.getRecordId();
         int tableId = recordId.getPageId().getTableId();
         DbFile dbFile = getCatalog().getDatabaseFile(tableId);
+        PageId pageId = t.getRecordId().getPageId();
+        Database.getLockManager().lockPage(tid, pageId, Permissions.READ_WRITE);
         List<Page> dirtyPages = dbFile.deleteTuple(tid, t);
         dirtyPages.forEach(page -> page.markDirty(true, tid));
-
-        for (Page dirtyPage : dirtyPages) {
-            if (pageList.contains(dirtyPage)) {
-                continue;
-            }
-            if (pageList.size() == pageNum) {
-                evictPage();
-                pageList.add(dirtyPage);
-            }
-        }
 
     }
 
@@ -255,11 +250,11 @@ public class BufferPool {
         if(pid == null){
             return;
         }
-        boolean removed = pageList.removeIf(page -> pid.equals(page.getId()));
-//        if(!removed){
-//            throw new RuntimeException("remove page failed, page not in buffer pool");
+        Page page = pageList.stream().filter(p -> pid.equals(p.getId())).findAny().orElse(null);
+//        if(page == null){
+//            throw new RuntimeException("page not found" + pid);
 //        }
-
+        pageList.remove(page);
     }
 
     /**
@@ -270,16 +265,11 @@ public class BufferPool {
     private synchronized void flushPage(PageId pid) throws IOException {
         int tableId = pid.getTableId();
         DbFile dbFile = getCatalog().getTable(tableId);
-        Page page = null;
-        try {
-            page = getPage(null, pid, Permissions.READ_WRITE);
-        } catch (TransactionAbortedException e) {
-            throw new RuntimeException(e);
-        } catch (DbException e) {
-            throw new RuntimeException(e);
+        Page page = pageList.stream().filter(p -> pid.equals(p.getId())).findAny().get();
+        if(page == null){
+            throw new RuntimeException("flush page failed, page not in buffer pool" + pid);
         }
         dbFile.writePage(page);
-
     }
 
     /**
@@ -287,13 +277,13 @@ public class BufferPool {
      */
     public synchronized void flushPages(TransactionId tid) throws IOException {
         Set<Page> dirtyPages = pageList.stream()
-                .filter(page -> Database.getLockManager().holdsLock(tid, page.getId()))
-                .filter(page -> page.isDirty() == tid)
+                .filter(page -> tid.equals(page.isDirty()))
                 .collect(Collectors.toSet());
 
         for (Page page : dirtyPages){
             flushPage(page.getId());
         }
+
     }
 
     /**
