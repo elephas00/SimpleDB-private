@@ -7,9 +7,13 @@ import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
 
 import java.io.IOException;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 import static simpledb.common.Database.getCatalog;
@@ -37,6 +41,10 @@ public class BufferPool {
 
     private final int pageNum;
 
+    private ReadWriteLock pageListLock = new ReentrantReadWriteLock();
+    private Lock readLock = pageListLock.readLock();
+    private Lock writeLock = pageListLock.writeLock();
+
     /**
      * Default number of pages passed to the constructor. This is used by
      * other classes. BufferPool should use the numPages argument to the
@@ -51,7 +59,7 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         pageNum = numPages;
-        pageList = new CopyOnWriteArrayList<>();
+        pageList = new LinkedList<>();
     }
 
     public static int getPageSize() {
@@ -90,21 +98,32 @@ public class BufferPool {
         if(!acquiredLock){
             throw new TransactionAbortedException("failed to acquire lock for page " + pid);
         }
-        Page target = null;
-        for(Page page : pageList){
-            if(page != null && pid.equals(page.getId())){
-                target = page;
-                break;
-            }
+        readLock.lock();
+        Page target;
+        try {
+            target = pageList.stream()
+                    .filter(page -> pid.equals(page.getId()))
+                    .findAny()
+                    .orElse(null);
+        }finally {
+            readLock.unlock();
         }
+
         if(target == null){
-            if(pageList.size() >= pageNum){
-                evictPage();
-            }
             Page loadPage = Database.getCatalog().getTable(pid.getTableId()).readPage(pid);
-            pageList.add(loadPage);
-            target = loadPage;
+
+            writeLock.lock();
+            try {
+                if(pageList.size() >= pageNum){
+                    evictPage();
+                }
+                pageList.add(loadPage);
+                target = loadPage;
+            }finally {
+                writeLock.unlock();
+            }
         }
+//        System.out.printf("%s acquire page %s, permission:%s\n", Thread.currentThread().getName(), pid.getPageNumber(), perm);
         return target;
     }
 
@@ -144,21 +163,36 @@ public class BufferPool {
      */
     public void transactionComplete(TransactionId tid, boolean commit) {
         // unlock all read only pages first.
-        pageList.stream()
-                .filter(p -> p.isDirty() == null)
-                .map(Page::getId)
-                .filter(pid -> Database.getBufferPool().holdsLock(tid, pid))
-                .forEach(pid -> Database.getLockManager().unlockPage(tid, pid));
+        readLock.lock();
+        try {
+            pageList.stream()
+                    .filter(p -> p.isDirty() == null)
+                    .map(Page::getId)
+                    .filter(pid -> Database.getBufferPool().holdsLock(tid, pid))
+                    .forEach(pid -> Database.getLockManager().unlockPage(tid, pid));
+        }finally {
+            readLock.unlock();
+        }
 
         if(commit) {
+            readLock.lock();
             try {
                 flushPages(tid);
             } catch (IOException e) {
                 Thread.currentThread().interrupt();
+            }finally {
+                readLock.unlock();
             }
         }else{
             // abort all pages being modified by this transaction.
-            pageList.removeIf(page -> tid.equals(page.isDirty()));
+            writeLock.lock();
+            try {
+                pageList.removeIf(page -> tid.equals(page.isDirty()));
+
+            }finally {
+                writeLock.unlock();
+
+            }
         }
         // unlock all pages being modified by this transaction.
         Database.getLockManager().unlockAllPages(tid);
@@ -184,19 +218,24 @@ public class BufferPool {
 
         DbFile dbFile = getCatalog().getDatabaseFile(tableId);
         List<Page> dirtyPages = dbFile.insertTuple(tid, t);
-
         dirtyPages.forEach(page -> page.markDirty(true, tid));
 
-        for (Page dirtyPage : dirtyPages) {
-            if (pageList.contains(dirtyPage)) {
-                continue;
+        writeLock.lock();
+        try {
+            Set<Page> dirtyPagesNotInBufferPoll = dirtyPages
+                    .stream()
+                    .filter(page -> !pageList.contains(page))
+                    .collect(Collectors.toSet());
+            for(Page p : dirtyPagesNotInBufferPoll){
+                if(pageList.size() >= pageNum){
+                    evictPage();
+                }
+                pageList.add(p);
             }
-            if (pageList.size() == pageNum) {
-                evictPage();
-            }
-            dbFile.writePage(dirtyPage);
-            pageList.add(dirtyPage);
+        }finally {
+            writeLock.unlock();
         }
+
     }
 
     /**
@@ -231,9 +270,15 @@ public class BufferPool {
      * break simpledb if running in NO STEAL mode.
      */
     public synchronized void flushAllPages() throws IOException {
-        for (Page page : pageList) {
-            flushPage(page.getId());
+        readLock.lock();
+        try {
+            for (Page page : pageList) {
+                flushPage(page.getId());
+            }
+        }finally {
+            readLock.unlock();
         }
+
         Database.getLockManager().releaseAllLocks();
     }
 
@@ -250,11 +295,17 @@ public class BufferPool {
         if(pid == null){
             return;
         }
-        Page page = pageList.stream().filter(p -> pid.equals(p.getId())).findAny().orElse(null);
+        writeLock.lock();
+        try {
+            Page page = pageList.stream().filter(p -> pid.equals(p.getId())).findAny().orElse(null);
 //        if(page == null){
 //            throw new RuntimeException("page not found" + pid);
 //        }
-        pageList.remove(page);
+            pageList.remove(page);
+        }finally {
+            writeLock.unlock();
+        }
+
     }
 
     /**
@@ -265,7 +316,15 @@ public class BufferPool {
     private synchronized void flushPage(PageId pid) throws IOException {
         int tableId = pid.getTableId();
         DbFile dbFile = getCatalog().getTable(tableId);
-        Page page = pageList.stream().filter(p -> pid.equals(p.getId())).findAny().get();
+        Page page;
+        readLock.lock();
+        try {
+            page = pageList.stream().filter(p -> pid.equals(p.getId())).findAny().get();
+        }finally {
+            readLock.unlock();
+        }
+
+
         if(page == null){
             throw new RuntimeException("flush page failed, page not in buffer pool" + pid);
         }
@@ -276,12 +335,16 @@ public class BufferPool {
      * Write all pages of the specified transaction to disk.
      */
     public synchronized void flushPages(TransactionId tid) throws IOException {
-        Set<Page> dirtyPages = pageList.stream()
-                .filter(page -> tid.equals(page.isDirty()))
-                .collect(Collectors.toSet());
-
-        for (Page page : dirtyPages){
-            flushPage(page.getId());
+        readLock.lock();
+        try {
+            Set<Page> dirtyPages = pageList.stream()
+                    .filter(page -> tid.equals(page.isDirty()))
+                    .collect(Collectors.toSet());
+            for (Page page : dirtyPages){
+                flushPage(page.getId());
+            }
+        }finally {
+            readLock.unlock();
         }
 
     }
@@ -292,13 +355,28 @@ public class BufferPool {
      */
     private synchronized void evictPage() throws DbException {
         // FIFO strategy, remove first non-dirty page in buffer poll.
-        for (Page page : pageList) {
-            if(page.isDirty() == null){
-                removePage(page.getId());
+        writeLock.lock();
+        Page target = null;
+        try {
+            for (Page page : pageList) {
+                if(page.isDirty() == null){
+                    target = page;
+                    break;
+                }
+            }
+            if(target != null){
+                pageList.remove(target);
                 return;
             }
+            // if all pages are dirty, abort all transactions.
+            Set<TransactionId> transactions = pageList.stream().map(Page::isDirty).collect(Collectors.toSet());
+            for(TransactionId tid : transactions){
+                transactionComplete(tid, false);
+            }
+        }finally {
+            writeLock.unlock();
         }
-        throw new DbException("evict page failed, buffer pool is full with dirty page.");
+
     }
 
 }
