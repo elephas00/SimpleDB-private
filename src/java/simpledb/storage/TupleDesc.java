@@ -3,7 +3,6 @@ package simpledb.storage;
 import simpledb.common.StringUtils;
 import simpledb.common.Type;
 
-import java.io.Serial;
 import java.io.Serializable;
 import java.util.*;
 
@@ -15,7 +14,6 @@ public class TupleDesc implements Serializable {
      * A help class to facilitate organizing the information of each field
      */
     public static class TDItem implements Serializable {
-        @Serial
         private static final long serialVersionUID = 1L;
 
         /**
@@ -50,7 +48,7 @@ public class TupleDesc implements Serializable {
         return listTDItem.iterator();
     }
 
-    @Serial
+    
     private static final long serialVersionUID = 1L;
 
     /**

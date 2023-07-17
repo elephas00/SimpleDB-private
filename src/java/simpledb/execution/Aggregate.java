@@ -6,7 +6,7 @@ import simpledb.storage.Tuple;
 import simpledb.storage.TupleDesc;
 import simpledb.transaction.TransactionAbortedException;
 
-import java.io.Serial;
+
 import java.util.NoSuchElementException;
 
 /**
@@ -15,7 +15,7 @@ import java.util.NoSuchElementException;
  * single column.
  */
 public class Aggregate extends Operator {
-    @Serial
+    
     private static final long serialVersionUID = 1L;
 
     private OpIterator child;

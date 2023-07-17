@@ -45,7 +45,7 @@ public class Catalog {
      */
     public static class TableItem implements Serializable {
         
-        @Serial
+        
         private static final long serialVersionUID = 1L;
 
         /**

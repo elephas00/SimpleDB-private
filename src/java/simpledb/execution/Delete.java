@@ -7,7 +7,7 @@ import simpledb.storage.*;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
 import java.io.IOException;
-import java.io.Serial;
+
 
 /**
  * The delete operator. Delete reads tuples from its child operator and removes
@@ -15,7 +15,7 @@ import java.io.Serial;
  */
 public class Delete extends Operator {
 
-    @Serial
+    
     private static final long serialVersionUID = 1L;
 
     private final TransactionId transactionId;

@@ -8,7 +8,7 @@ import simpledb.storage.Tuple;
 import simpledb.storage.TupleDesc;
 import simpledb.transaction.TransactionAbortedException;
 
-import java.io.Serial;
+
 import java.util.*;
 
 /**
@@ -16,7 +16,7 @@ import java.util.*;
  */
 public class StringAggregator implements Aggregator {
 
-    @Serial
+    
     private static final long serialVersionUID = 1L;
 
     private final int aggregateFiled;

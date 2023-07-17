@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -41,9 +40,9 @@ public class BufferPool {
 
     private final int pageNum;
 
-    private ReadWriteLock pageListLock = new ReentrantReadWriteLock();
-    private Lock readLock = pageListLock.readLock();
-    private Lock writeLock = pageListLock.writeLock();
+    private final ReadWriteLock pageListLock = new ReentrantReadWriteLock();
+    private final Lock readLock = pageListLock.readLock();
+    private final Lock writeLock = pageListLock.writeLock();
 
     /**
      * Default number of pages passed to the constructor. This is used by
@@ -258,7 +257,7 @@ public class BufferPool {
         int tableId = recordId.getPageId().getTableId();
         DbFile dbFile = getCatalog().getDatabaseFile(tableId);
         PageId pageId = t.getRecordId().getPageId();
-        Database.getLockManager().lockPage(tid, pageId, Permissions.READ_WRITE);
+//        Database.getLockManager().lockPage(tid, pageId, Permissions.READ_WRITE);
         List<Page> dirtyPages = dbFile.deleteTuple(tid, t);
         dirtyPages.forEach(page -> page.markDirty(true, tid));
 
@@ -343,6 +342,7 @@ public class BufferPool {
             return;
         }
         dbFile.writePage(page);
+        page.markDirty(false, null);
     }
 
     /**
@@ -400,22 +400,13 @@ public class BufferPool {
         writeLock.lock();
         Page target = null;
         try {
-//            target = pageList.stream()
-//                    .filter(page -> !Database.getLockManager().isWriteLocked(page.getId()))
-//                    .findAny()
-//                    .orElse(null);
             target = pageList.stream().filter(page -> page.isDirty() == null).findAny().orElse(null);
-
             if(target != null){
                 pageList.remove(target);
                 return;
             }
-            // if all pages are dirty, abort all transactions.
+            // if all pages are dirty, abort current transaction.
             throw new DbException("all pages are dirty, evict page failed.");
-//            Set<TransactionId> transactions = pageList.stream().map(Page::isDirty).collect(Collectors.toSet());
-//            for(TransactionId tid : transactions){
-//                transactionComplete(tid, false);
-//            }
         }finally {
             writeLock.unlock();
         }
