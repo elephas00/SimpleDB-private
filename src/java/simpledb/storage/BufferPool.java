@@ -220,21 +220,21 @@ public class BufferPool {
         List<Page> dirtyPages = dbFile.insertTuple(tid, t);
         dirtyPages.forEach(page -> page.markDirty(true, tid));
 
-//        writeLock.lock();
-//        try {
-//            Set<Page> dirtyPagesNotInBufferPoll = dirtyPages
-//                    .stream()
-//                    .filter(page -> !pageList.contains(page))
-//                    .collect(Collectors.toSet());
-//            for(Page p : dirtyPagesNotInBufferPoll){
-//                if(pageList.size() >= pageNum){
-//                    evictPage();
-//                }
-//                pageList.add(p);
-//            }
-//        }finally {
-//            writeLock.unlock();
-//        }
+        writeLock.lock();
+        try {
+            Set<Page> dirtyPagesNotInBufferPoll = dirtyPages
+                    .stream()
+                    .filter(page -> !pageList.contains(page))
+                    .collect(Collectors.toSet());
+            for(Page p : dirtyPagesNotInBufferPoll){
+                if(pageList.size() >= pageNum){
+                    evictPage(tid);
+                }
+                pageList.add(p);
+            }
+        }finally {
+            writeLock.unlock();
+        }
 
     }
 
@@ -262,6 +262,21 @@ public class BufferPool {
         List<Page> dirtyPages = dbFile.deleteTuple(tid, t);
         dirtyPages.forEach(page -> page.markDirty(true, tid));
 
+        writeLock.lock();
+        try {
+            Set<Page> dirtyPagesNotInBufferPoll = dirtyPages
+                    .stream()
+                    .filter(page -> !pageList.contains(page))
+                    .collect(Collectors.toSet());
+            for(Page p : dirtyPagesNotInBufferPoll){
+                if(pageList.size() >= pageNum){
+                    evictPage(tid);
+                }
+                pageList.add(p);
+            }
+        }finally {
+            writeLock.unlock();
+        }
     }
 
     /**
@@ -358,7 +373,7 @@ public class BufferPool {
                     .findAny()
                     .orElse(null);
             if(target == null){
-                throw new DbException("all page is dirty, evict failed.");
+                throw new DbException("all pages are dirty, evict failed.");
             }
             pageList.remove(target);
         }finally {
