@@ -178,6 +178,7 @@ public class BTreeRootPtrPage implements Page {
         if (id == null) {
             root = 0;
         } else {
+
             if (id.getTableId() != pid.getTableId()) {
                 throw new DbException("table id mismatch in setRootId");
             }

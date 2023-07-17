@@ -1,22 +1,19 @@
 package simpledb.storage;
 
+import simpledb.common.StringUtils;
 import simpledb.common.Type;
 
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 /**
  * TupleDesc describes the schema of a tuple.
  */
 public class TupleDesc implements Serializable {
-
     /**
      * A help class to facilitate organizing the information of each field
      */
     public static class TDItem implements Serializable {
-
         private static final long serialVersionUID = 1L;
 
         /**
@@ -39,15 +36,19 @@ public class TupleDesc implements Serializable {
         }
     }
 
+    final Type[] typeArray;
+    final String[] fieldArray;
+    final List<TDItem> listTDItem;
+    final int size;
     /**
      * @return An iterator which iterates over all the field TDItems
      *         that are included in this TupleDesc
      */
     public Iterator<TDItem> iterator() {
-        // TODO: some code goes here
-        return null;
+        return listTDItem.iterator();
     }
 
+    
     private static final long serialVersionUID = 1L;
 
     /**
@@ -60,7 +61,61 @@ public class TupleDesc implements Serializable {
      *                be null.
      */
     public TupleDesc(Type[] typeAr, String[] fieldAr) {
-        // TODO: some code goes here
+        // a valid tuple description must have at least one filed.
+        if(typeAr == null || typeAr.length == 0){
+            throw new IllegalArgumentException();
+        }
+        int len = typeAr.length;
+        ArrayList<TDItem> items = new ArrayList<>(len);
+        for(int i = 0; i < len; i++){
+            items.add(new TDItem(typeAr[i], fieldAr[i]));
+        }
+        typeArray = typeAr;
+        fieldArray = fieldAr;
+        listTDItem = items;
+        size = calcSize(typeAr);
+    }
+
+    public static TupleDesc getAliasWrappedInstance(TupleDesc origin, String alias){
+        String[] aliasedField = new String[origin.numFields()];
+        for(int i = 0; i < origin.numFields(); i++){
+            aliasedField[i] = alias + "." + origin.getFieldName(i);
+        }
+        return new TupleDesc(origin.typeArray, aliasedField);
+    }
+    public static TupleDesc getInstance(Type[] typeAr, String[] fieldAr){
+        return new TupleDesc(typeAr, fieldAr);
+    }
+
+    public static TupleDesc getInstance(Type[] typeAr){
+        return new TupleDesc(typeAr);
+    }
+    public TupleDesc(Type[] typeAr, String[] fieldAr, String tableAlias) {
+        // a valid tuple description must have at least one filed.
+        if(typeAr == null || typeAr.length == 0){
+            throw new IllegalArgumentException();
+        }
+        int len = typeAr.length;
+        ArrayList<TDItem> items = new ArrayList<>(len);
+        for(int i = 0; i < len; i++){
+            items.add(new TDItem(typeAr[i], tableAlias + "." + fieldAr[i]));
+        }
+        typeArray = typeAr;
+        fieldArray = fieldAr;
+        listTDItem = items;
+        size = calcSize(typeAr);
+    }
+    /**
+     * Calculate the size of given type array.
+     * @param typeAr    given type array to calculate.
+     * @return          size of given type array.
+     */
+    private static int calcSize(Type[] typeAr){
+        int sum = 0;
+        for(Type tp : typeAr){
+            sum += tp.getLen();
+        }
+        return sum;
     }
 
     /**
@@ -71,15 +126,27 @@ public class TupleDesc implements Serializable {
      *               TupleDesc. It must contain at least one entry.
      */
     public TupleDesc(Type[] typeAr) {
-        // TODO: some code goes here
+        // a valid tuple description must have at least one filed.
+        if(typeAr == null || typeAr.length == 0){
+            throw new IllegalArgumentException();
+        }
+        final int len = typeAr.length;
+
+        ArrayList<TDItem> items = new ArrayList<>(len);
+        for (Type type : typeAr) {
+            items.add(new TDItem(type, null));
+        }
+        listTDItem = items;
+        typeArray = typeAr;
+        fieldArray = new String[len];
+        size = calcSize(typeAr);
     }
 
     /**
      * @return the number of fields in this TupleDesc
      */
     public int numFields() {
-        // TODO: some code goes here
-        return 0;
+        return listTDItem.size();
     }
 
     /**
@@ -90,9 +157,19 @@ public class TupleDesc implements Serializable {
      * @throws NoSuchElementException if i is not a valid field reference.
      */
     public String getFieldName(int i) throws NoSuchElementException {
-        // TODO: some code goes here
-        return null;
+        if(i < 0 || i >= numFields()){
+            throw new NoSuchElementException();
+        }
+        return fieldArray[i];
     }
+
+    public String getFieldName(int i, String tableAlias) throws NoSuchElementException {
+        if(i < 0 || i >= numFields()){
+            throw new NoSuchElementException();
+        }
+        return tableAlias + "." + fieldArray[i];
+    }
+
 
     /**
      * Gets the type of the ith field of this TupleDesc.
@@ -103,8 +180,10 @@ public class TupleDesc implements Serializable {
      * @throws NoSuchElementException if i is not a valid field reference.
      */
     public Type getFieldType(int i) throws NoSuchElementException {
-        // TODO: some code goes here
-        return null;
+        if(i < 0 || i >= numFields()){
+            throw new NoSuchElementException();
+        }
+        return typeArray[i];
     }
 
     /**
@@ -115,8 +194,16 @@ public class TupleDesc implements Serializable {
      * @throws NoSuchElementException if no field with a matching name is found.
      */
     public int indexForFieldName(String name) throws NoSuchElementException {
-        // TODO: some code goes here
-        return 0;
+        if(StringUtils.isBlank(name)){
+            throw new NoSuchElementException();
+        }
+
+        for(int i = 0; i < numFields(); i++){
+            if(name.equals(fieldArray[i])){
+                return i;
+            }
+        }
+        throw new NoSuchElementException();
     }
 
     /**
@@ -124,8 +211,7 @@ public class TupleDesc implements Serializable {
      *         Note that tuples from a given TupleDesc are of a fixed size.
      */
     public int getSize() {
-        // TODO: some code goes here
-        return 0;
+        return size;
     }
 
     /**
@@ -137,8 +223,16 @@ public class TupleDesc implements Serializable {
      * @return the new TupleDesc
      */
     public static TupleDesc merge(TupleDesc td1, TupleDesc td2) {
-        // TODO: some code goes here
-        return null;
+        int newNumFields = td1.numFields() + td2.numFields();
+        Type[] newTypeAr = new Type[newNumFields];
+        String[] newFieldAr = new String[newNumFields];
+        // copy types
+        System.arraycopy(td1.typeArray, 0, newTypeAr, 0, td1.numFields());
+        System.arraycopy(td2.typeArray, 0, newTypeAr, td1.numFields(), td2.numFields());
+        // copy fields
+        System.arraycopy(td1.fieldArray, 0, newFieldAr, 0, td1.numFields());
+        System.arraycopy(td2.fieldArray, 0, newFieldAr, td1.numFields(), td2.numFields());
+        return new TupleDesc(newTypeAr, newFieldAr);
     }
 
     /**
@@ -152,8 +246,10 @@ public class TupleDesc implements Serializable {
      */
 
     public boolean equals(Object o) {
-        // TODO: some code goes here
-        return false;
+        if(!(o instanceof TupleDesc)){
+            return false;
+        }
+        return Arrays.compare(typeArray, ((TupleDesc) o).typeArray) == 0;
     }
 
     public int hashCode() {
@@ -170,7 +266,29 @@ public class TupleDesc implements Serializable {
      * @return String describing this descriptor.
      */
     public String toString() {
-        // TODO: some code goes here
-        return "";
+        StringBuilder builder = new StringBuilder();
+        builder.append(listTDItem.get(0).toString());
+        for(int i = 1; i < numFields(); i++){
+            builder.append(',')
+                    .append(listTDItem.get(i).toString())
+                    .append(')');
+        }
+        return builder.toString();
+    }
+
+    private String toString(String tableAlias){
+        StringBuilder builder = new StringBuilder();
+        builder.append(tableAlias)
+                .append('.')
+                .append(listTDItem.get(0)
+                        .toString());
+        for(int i = 1; i < numFields(); i++){
+            builder.append(',')
+                    .append(tableAlias)
+                    .append('.')
+                    .append(listTDItem.get(i).toString())
+                    .append(')');
+        }
+        return builder.toString();
     }
 }

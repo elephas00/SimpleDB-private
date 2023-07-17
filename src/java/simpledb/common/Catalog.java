@@ -4,12 +4,10 @@ import simpledb.storage.DbFile;
 import simpledb.storage.HeapFile;
 import simpledb.storage.TupleDesc;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+
 
 /**
  * The Catalog keeps track of all available tables in the database and their
@@ -22,12 +20,65 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class Catalog {
 
+
+    /**
+     * The index to find table item by table id.
+     */
+    private final Map<Integer, TableItem> tableId2TableItem;
+
+    /**
+     * The index to find table item by table name.
+     */
+    private final Map<String, TableItem> tableName2TableItem;
+
     /**
      * Constructor.
      * Creates a new, empty catalog.
      */
     public Catalog() {
-        // TODO: some code goes here
+        tableId2TableItem = new ConcurrentHashMap<>();
+        tableName2TableItem = new ConcurrentHashMap<>();
+    }
+
+    /**
+     * A help class to manage table.
+     */
+    public static class TableItem implements Serializable {
+        
+        
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * The dbfile of table item.
+         */
+        public final DbFile dbFile;
+
+        /**
+         * The name of the table item.
+         */
+        public final String name;
+
+        /**
+         * The primary key of the table item.
+         */
+        public final String primaryKey;
+
+        public TableItem(DbFile f, String n, String p){
+            dbFile = f;
+            name = n;
+            primaryKey = p;
+        }
+
+        public static TableItem getInstance(DbFile dbFile, String name, String primaryKey){
+            return new TableItem(dbFile, name, primaryKey);
+        }
+    }
+
+    public DbFile getTable(int tableId){
+        if(!isExistTableId(tableId)){
+            throw new NoSuchElementException();
+        }
+        return tableId2TableItem.get(tableId).dbFile;
     }
 
     /**
@@ -41,7 +92,9 @@ public class Catalog {
      * @param pkeyField the name of the primary key field
      */
     public void addTable(DbFile file, String name, String pkeyField) {
-        // TODO: some code goes here
+        TableItem item = TableItem.getInstance(file, name, pkeyField);
+        tableId2TableItem.put(file.getId(), item);
+        tableName2TableItem.put(name, item);
     }
 
     public void addTable(DbFile file, String name) {
@@ -66,8 +119,29 @@ public class Catalog {
      * @throws NoSuchElementException if the table doesn't exist
      */
     public int getTableId(String name) throws NoSuchElementException {
-        // TODO: some code goes here
-        return 0;
+        if(name == null){
+            throw new NoSuchElementException();
+        }
+        TableItem item = getTableByName(name);
+        return item.dbFile.getId();
+    }
+
+    /**
+     * Help function to check whether a table with given name exists.
+     * @param name      the table name to query.
+     * @return          true if table with given name exists, otherwise false.
+     */
+    private boolean isExistTableName(String name)  {
+        return tableName2TableItem.get(name) != null;
+    }
+
+    /**
+     * Help function to check whether a table with given table id exists.
+     * @param id        the table id to query.
+     * @return          true if table with given id exists, otherwise false.
+     */
+    private boolean isExistTableId(int id){
+        return tableId2TableItem.get(id) != null;
     }
 
     /**
@@ -78,8 +152,8 @@ public class Catalog {
      * @throws NoSuchElementException if the table doesn't exist
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
-        // TODO: some code goes here
-        return null;
+        TableItem item = getByTableId(tableid);
+        return item.dbFile.getTupleDesc();
     }
 
     /**
@@ -90,30 +164,54 @@ public class Catalog {
      *                function passed to addTable
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
-        // TODO: some code goes here
-        return null;
+        TableItem item = getByTableId(tableid);
+        return item.dbFile;
     }
 
     public String getPrimaryKey(int tableid) {
-        // TODO: some code goes here
-        return null;
+        TableItem item = getByTableId(tableid);
+        return item.primaryKey;
     }
 
     public Iterator<Integer> tableIdIterator() {
-        // TODO: some code goes here
-        return null;
+        return tableId2TableItem.keySet().iterator();
     }
 
+    /**
+     * Help function to get a table item by table id.
+     * @param tableId       tableId of given table to search.
+     * @return              TableItem object with given table id.
+     * @throws NoSuchElementException   table not found with given table id.
+     */
+    private TableItem getByTableId(int tableId) throws NoSuchElementException{
+        if(!isExistTableId(tableId)){
+            throw new NoSuchElementException();
+        }
+        return tableId2TableItem.get(tableId);
+    }
+    /**
+     * Help function to get a table item by name.
+     * @param name          name of given table to search.
+     * @return              TableItem object with given name.
+     * @throws NoSuchElementException   table not found with given name.
+     */
+    private TableItem getTableByName(String name) throws NoSuchElementException{
+        if(!isExistTableName(name)){
+            throw new NoSuchElementException();
+        }
+        return tableName2TableItem.get(name);
+    }
     public String getTableName(int id) {
-        // TODO: some code goes here
-        return null;
+        TableItem item = getByTableId(id);
+        return item.name;
     }
 
     /**
      * Delete all tables from the catalog
      */
     public void clear() {
-        // TODO: some code goes here
+        tableId2TableItem.clear();
+        tableName2TableItem.clear();
     }
 
     /**

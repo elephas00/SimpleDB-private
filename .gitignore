@@ -1,0 +1,11 @@
+/.idea/
+/out/
+*.iml
+.classpath
+.project
+log
+/bin/*
+/dist/
+/bin/
+*.dat
+*.backup

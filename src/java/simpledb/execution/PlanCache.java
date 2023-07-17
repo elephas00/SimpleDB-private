@@ -61,4 +61,8 @@ public class PlanCache {
     public int getCard(Set<LogicalJoinNode> s) {
         return bestCardinalities.get(s);
     }
+
+    public static PlanCache getInstance(){
+        return new PlanCache();
+    }
 }
