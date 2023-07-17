@@ -176,7 +176,13 @@ public class BufferPool {
         if(commit) {
             readLock.lock();
             try {
-                flushPages(tid);
+                Set<Page> dirtyPages = pageList.stream()
+                        .filter(page -> tid.equals(page.isDirty()))
+                        .collect(Collectors.toSet());
+                for (Page page : dirtyPages){
+                    flushPage(page.getId());
+                    page.setBeforeImage();
+                }
             } catch (IOException e) {
                 Thread.currentThread().interrupt();
             }finally {
@@ -340,6 +346,13 @@ public class BufferPool {
         }
         if(page.isDirty() == null){
             return;
+        }
+        // append an update record to the log, with
+        // a before-image and after-image.
+        TransactionId dirtier = page.isDirty();
+        if (dirtier != null){
+            Database.getLogFile().logWrite(dirtier, page.getBeforeImage(), page);
+            Database.getLogFile().force();
         }
         dbFile.writePage(page);
         page.markDirty(false, null);
