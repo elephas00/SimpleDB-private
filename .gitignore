@@ -6,5 +6,6 @@
 log
 /bin/*
 /dist/
+/bin/
 *.dat
 *.backup
