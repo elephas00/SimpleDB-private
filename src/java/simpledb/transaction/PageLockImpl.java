@@ -84,6 +84,7 @@ public class PageLockImpl implements PageLock {
             }
             if(Permissions.READ_WRITE.equals(permission)){
                 holders.remove(transactionId);
+                permission = Permissions.READ_ONLY;
                 return true;
             }
         }
@@ -93,6 +94,16 @@ public class PageLockImpl implements PageLock {
     @Override
     public PageId getPageId() {
         return pageId;
+    }
+
+    @Override
+    public boolean isWriteLocked() {
+        synchronized (this){
+            if(holders.isEmpty()){
+                return false;
+            }
+            return Permissions.READ_WRITE.equals(permission);
+        }
     }
 }
 

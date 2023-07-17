@@ -42,5 +42,12 @@ public interface LockManager {
      * should execute after all test pages flush to disk.
      */
     void releaseAllLocks();
+
+    /**
+     * check if given page is write locked by any transaction.
+     * @param pageId    id of the page to check.
+     * @return          true if locked, or else false.
+     */
+    boolean isWriteLocked(PageId pageId);
 }
 

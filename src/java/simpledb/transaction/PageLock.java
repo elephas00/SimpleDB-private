@@ -51,4 +51,6 @@ public interface PageLock {
     boolean releaseLock(TransactionId transactionId);
 
     PageId getPageId();
+
+    boolean isWriteLocked();
 }

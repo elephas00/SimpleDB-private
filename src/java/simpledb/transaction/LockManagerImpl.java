@@ -73,6 +73,9 @@ public class LockManagerImpl implements LockManager{
 
     @Override
     public boolean holdsLock(TransactionId tid, PageId pid) {
+        if(tid == null || pid == null){
+            return false;
+        }
         Set<PageLock> holdLocks = transactionLockTable.get(tid);
         if(holdLocks == null){
             return false;
@@ -102,6 +105,15 @@ public class LockManagerImpl implements LockManager{
     public void releaseAllLocks() {
         this.lockTable.clear();
         this.transactionLockTable.clear();
+    }
+
+    @Override
+    public boolean isWriteLocked(PageId pageId) {
+        PageLock pageLock = lockTable.get(pageId);
+        if(pageLock == null){
+            return false;
+        }
+        return pageLock.isWriteLocked();
     }
 
 }
