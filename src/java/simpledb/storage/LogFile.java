@@ -474,6 +474,50 @@ public class LogFile {
             synchronized (this) {
                 preAppend();
                 // TODO: some code goes here
+                Long firstLogRecord = tidToFirstLogRecord.get(tid.getId());
+                if(firstLogRecord == null){
+                    throw new NoSuchElementException("transaction not exist " + tid.getId());
+                }
+                raf.seek(firstLogRecord);
+                print();
+                Stack<Page> stack = new Stack<>();
+
+                while(raf.getFilePointer() != raf.length()){
+                    int logType = raf.readInt();
+                    long tidOfLog = raf.readLong();
+                    switch (logType){
+                        case COMMIT_RECORD:
+                        case BEGIN_RECORD:
+                        case ABORT_RECORD:
+                            break;
+                        case UPDATE_RECORD:
+                            Page before = readPageData(raf);
+                            Page after = readPageData(raf);
+                            if(tidOfLog == tid.getId()){
+                                stack.push(before);
+                            }
+                            break;
+                        case CHECKPOINT_RECORD:
+                            int numTransactions = raf.readInt();
+                            while (numTransactions-- > 0) {
+                                long ttid = raf.readLong();
+                                long firstRecord = raf.readLong();
+                            }
+                            break;
+                        default:
+                            throw new RuntimeException("invalid type of log");
+                    }
+                    // read offset
+                    long offset = raf.readLong();
+                }
+
+                while(!stack.isEmpty()){
+                    Page before = stack.pop();
+                    Database.getCatalog()
+                            .getDatabaseFile(before.getId().getTableId())
+                            .writePage(before);
+                }
+
             }
         }
     }

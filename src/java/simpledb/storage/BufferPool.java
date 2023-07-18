@@ -165,8 +165,8 @@ public class BufferPool {
         readLock.lock();
         try {
             pageList.stream()
-                    .filter(p -> p.isDirty() == null)
                     .map(Page::getId)
+                    .filter(pid -> !Database.getLockManager().isWriteLocked(pid))
                     .filter(pid -> Database.getBufferPool().holdsLock(tid, pid))
                     .forEach(pid -> Database.getLockManager().unlockPage(tid, pid));
         }finally {
@@ -192,7 +192,10 @@ public class BufferPool {
             // abort all pages being modified by this transaction.
             writeLock.lock();
             try {
-                pageList.removeIf(page -> tid.equals(page.isDirty()));
+                pageList.removeIf(page ->
+                        Database.getLockManager().isWriteLocked(page.getId()) &&
+                                Database.getBufferPool().holdsLock(tid, page.getId())
+                );
 
             }finally {
                 writeLock.unlock();
@@ -299,7 +302,7 @@ public class BufferPool {
             readLock.unlock();
         }
 
-        Database.getLockManager().releaseAllLocks();
+//        Database.getLockManager().releaseAllLocks();
     }
 
     /**
