@@ -2,8 +2,10 @@ package simpledb.storage;
 
 import simpledb.common.Database;
 import simpledb.common.Debug;
+import simpledb.common.Permissions;
 import simpledb.transaction.TransactionId;
 
+import javax.xml.crypto.Data;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
@@ -478,10 +480,9 @@ public class LogFile {
                 if(firstLogRecord == null){
                     throw new NoSuchElementException("transaction not exist " + tid.getId());
                 }
+                currentOffset = raf.getFilePointer();
                 raf.seek(firstLogRecord);
-                print();
                 Stack<Page> stack = new Stack<>();
-
                 while(raf.getFilePointer() != raf.length()){
                     int logType = raf.readInt();
                     long tidOfLog = raf.readLong();
@@ -513,11 +514,13 @@ public class LogFile {
 
                 while(!stack.isEmpty()){
                     Page before = stack.pop();
+                    Database.getBufferPool().removePage(before.getId());
                     Database.getCatalog()
                             .getDatabaseFile(before.getId().getTableId())
                             .writePage(before);
+//                    Database.getBufferPool().getPage(tid, before.getId(), Permissions.READ_WRITE);
                 }
-
+                raf.seek(currentOffset);
             }
         }
     }
@@ -546,8 +549,103 @@ public class LogFile {
         synchronized (Database.getBufferPool()) {
             synchronized (this) {
                 recoveryUndecided = false;
-                // TODO: some code goes here
+                currentOffset = raf.getFilePointer();
+                raf.seek(0);
+                long lastCheckpoint = raf.readLong();
+                Set<Long> undoTransactionIdSet = new HashSet<>();
+                Set<Long> redoTransactionIdSet = new HashSet<>();
+                Map<Long, Long> tid2FirstRecordOffset = new HashMap<>();
+                // if there are active transactions, remember them.
+                if(lastCheckpoint != NO_CHECKPOINT_ID){
+                    raf.seek(lastCheckpoint);
+                    int cpType = raf.readInt();
+                    if(cpType != CHECKPOINT_RECORD){
+                        throw new RuntimeException();
+                    }
+                    long cpTid = raf.readLong();
+                    int numTransactions = raf.readInt();
+                    while(numTransactions > 0){
+                        numTransactions--;
+                        long tid = raf.readLong();
+                        long firstRecord = raf.readLong();
+                        undoTransactionIdSet.add(tid);
+                        tid2FirstRecordOffset.put(tid, firstRecord);
+                    }
+                    raf.readLong();
+                }
+
+                while(raf.getFilePointer() != raf.length()){
+                    int logType = raf.readInt();
+                    long tid = raf.readLong();
+                    switch (logType){
+                        case BEGIN_RECORD:
+                            undoTransactionIdSet.add(tid);
+                            // FIRST RECORD OFFSET
+                            break;
+                        case ABORT_RECORD:
+                        case COMMIT_RECORD:
+                            undoTransactionIdSet.remove(tid);
+                            redoTransactionIdSet.add(tid);
+                            break;
+                        case UPDATE_RECORD:
+                            Page before = readPageData(raf);
+                            Page after = readPageData(raf);
+                            break;
+                        case CHECKPOINT_RECORD:
+                            int numTransactions = raf.readInt();
+                            while (numTransactions-- > 0) {
+                                long ttid = raf.readLong();
+                                long firstRecord = raf.readLong();
+                            }
+                            break;
+                    }
+                    long offset = raf.readLong();
+                }
+
+                // due to force policy, when a transaction commit, all changes are in disk.
+                // so we do not need to redo.
+
+                // undo all transaction.
+                raf.seek(0);
+                raf.readLong();
+
+                Stack<Page> stack = new Stack<>();
+                while(raf.getFilePointer() != raf.length()){
+                    int logType = raf.readInt();
+                    long tid = raf.readLong();
+                    switch (logType){
+                        case BEGIN_RECORD:
+                        case ABORT_RECORD:
+                        case COMMIT_RECORD:
+                            break;
+                        case UPDATE_RECORD:
+                            Page before = readPageData(raf);
+                            Page after = readPageData(raf);
+                            if(undoTransactionIdSet.contains(tid)){
+                                stack.push(before);
+                            }
+                            break;
+                        case CHECKPOINT_RECORD:
+                            int numTransactions = raf.readInt();
+                            while (numTransactions-- > 0) {
+                                long ttid = raf.readLong();
+                                long firstRecord = raf.readLong();
+                            }
+                            break;
+                    }
+                    long offset = raf.readLong();
+                }
+
+                while(!stack.isEmpty()){
+                    Page page = stack.pop();
+                    Database.getCatalog().getTable(
+                            page.getId().getTableId()
+                    ).writePage(page);
+                }
+
+                raf.seek(currentOffset);
             }
+
         }
     }
 

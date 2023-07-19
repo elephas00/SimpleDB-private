@@ -177,7 +177,8 @@ public class BufferPool {
             readLock.lock();
             try {
                 Set<Page> dirtyPages = pageList.stream()
-                        .filter(page -> tid.equals(page.isDirty()))
+                        .filter(page -> Database.getLockManager().isWriteLocked(page.getId()))
+                        .filter(page -> Database.getLockManager().holdsLock(tid, page.getId()))
                         .collect(Collectors.toSet());
                 for (Page page : dirtyPages){
                     flushPage(page.getId());
