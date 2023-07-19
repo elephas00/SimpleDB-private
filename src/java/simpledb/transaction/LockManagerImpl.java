@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class LockManagerImpl implements LockManager{
     /**
@@ -114,6 +115,19 @@ public class LockManagerImpl implements LockManager{
             return false;
         }
         return pageLock.isWriteLocked();
+    }
+
+    @Override
+    public Set<PageId> readWritePages(TransactionId transactionId) {
+        Set<PageLock> allLocks = transactionLockTable.get(transactionId);
+        if(allLocks == null){
+            return new HashSet<>();
+        }
+
+        return allLocks.stream()
+                .map(PageLock::getPageId)
+                .filter(this::isWriteLocked)
+                .collect(Collectors.toSet());
     }
 
 }

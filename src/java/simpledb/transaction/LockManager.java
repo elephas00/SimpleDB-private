@@ -1,7 +1,10 @@
 package simpledb.transaction;
 
 import simpledb.common.Permissions;
+import simpledb.storage.Page;
 import simpledb.storage.PageId;
+
+import java.util.Set;
 
 public interface LockManager {
     /**
@@ -49,5 +52,7 @@ public interface LockManager {
      * @return          true if locked, or else false.
      */
     boolean isWriteLocked(PageId pageId);
+
+    Set<PageId> readWritePages(TransactionId transactionId);
 }
 

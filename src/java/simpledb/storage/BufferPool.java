@@ -176,14 +176,28 @@ public class BufferPool {
         if(commit) {
             readLock.lock();
             try {
-                Set<Page> dirtyPages = pageList.stream()
-                        .filter(page -> Database.getLockManager().isWriteLocked(page.getId()))
-                        .filter(page -> Database.getLockManager().holdsLock(tid, page.getId()))
-                        .collect(Collectors.toSet());
-                for (Page page : dirtyPages){
-                    flushPage(page.getId());
+                Set<PageId> modifiedPages = Database.getLockManager().readWritePages(tid);
+                for(PageId pid : modifiedPages){
+                    Page page = null;
+                    try {
+                        page = this.getPage(tid, pid, Permissions.READ_WRITE);
+                    } catch (TransactionAbortedException e) {
+                        throw new RuntimeException(e);
+                    } catch (DbException e) {
+                        throw new RuntimeException(e);
+                    }
+                    flushPage(pid);
                     page.setBeforeImage();
                 }
+//                Set<Page> dirtyPages = pageList.stream()
+//                        .filter(page -> Database.getLockManager().isWriteLocked(page.getId()))
+//                        .filter(page -> Database.getLockManager().holdsLock(tid, page.getId()))
+//                        .collect(Collectors.toSet());
+//
+//                for (Page page : dirtyPages){
+//                    flushPage(page.getId());
+//                    page.setBeforeImage();
+//                }
             } catch (IOException e) {
                 Thread.currentThread().interrupt();
             }finally {
@@ -303,7 +317,7 @@ public class BufferPool {
             readLock.unlock();
         }
 
-//        Database.getLockManager().releaseAllLocks();
+        Database.getLockManager().releaseAllLocks();
     }
 
     /**
