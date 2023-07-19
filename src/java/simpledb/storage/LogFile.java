@@ -476,13 +476,14 @@ public class LogFile {
             synchronized (this) {
                 preAppend();
                 // TODO: some code goes here
+                currentOffset = raf.getFilePointer();
                 Long firstLogRecord = tidToFirstLogRecord.get(tid.getId());
                 if(firstLogRecord == null){
                     throw new NoSuchElementException("transaction not exist " + tid.getId());
                 }
-                currentOffset = raf.getFilePointer();
                 raf.seek(firstLogRecord);
                 Stack<Page> stack = new Stack<>();
+//                print();
                 while(raf.getFilePointer() != raf.length()){
                     int logType = raf.readInt();
                     long tidOfLog = raf.readLong();
@@ -506,7 +507,7 @@ public class LogFile {
                             }
                             break;
                         default:
-                            throw new RuntimeException("invalid type of log");
+                            throw new RuntimeException("invalid type of log: " + logType + ", tid of log: " + tidOfLog + ", offset:" + raf.getFilePointer());
                     }
                     // read offset
                     long offset = raf.readLong();
@@ -555,6 +556,7 @@ public class LogFile {
                 Set<Long> undoTransactionIdSet = new HashSet<>();
                 Set<Long> redoTransactionIdSet = new HashSet<>();
                 Map<Long, Long> tid2FirstRecordOffset = new HashMap<>();
+                print();
                 // if there are active transactions, remember them.
                 if(lastCheckpoint != NO_CHECKPOINT_ID){
                     raf.seek(lastCheckpoint);
