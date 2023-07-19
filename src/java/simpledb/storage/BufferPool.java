@@ -317,7 +317,7 @@ public class BufferPool {
             readLock.unlock();
         }
 
-        Database.getLockManager().releaseAllLocks();
+//        Database.getLockManager().releaseAllLocks();
     }
 
     /**
